@@ -87,14 +87,27 @@ let S,U={role:'e',emp:'w',wk:mon(TODAY),mm:new Date(TODAY.getFullYear(),TODAY.ge
 let CFG=null,st,dirty=0;const ENV=window.SS_ENV||{},sb=ENV.url&&window.supabase?supabase.createClient(ENV.url,ENV.key):null;
 const save=()=>{if(!CFG)return;dirty=1;clearTimeout(st);st=setTimeout(push,400)};
 async function push(){if(!CFG||!sb)return;try{const mg=CFG.mgr;
- const rows=EMP.map(e=>{const id=e.id,sub={},obj={},ac={...(S.acks?.[id]||{})},r={emp_id:id};
-  Object.keys(S.sub).forEach(k=>{if(k.startsWith(id)&&S.sub[k])sub[k.slice(id.length)]=1});Object.keys(S.obj).forEach(k=>{if(k.startsWith(id)&&S.obj[k])obj[k.slice(id.length)]=1});
-  if(mg){Object.entries(S.off[id]).forEach(([d,a])=>{if(a.some(x=>x.st=='pend'))delete ac[d]});Object.assign(r,{name:e.n,title:e.r,rate:e.rate,email:e.wp||null,off:S.off[id],punches:S.at[id],obj,acks:ac})}
-  else Object.assign(r,{av:S.av[id],sub,obj,acks:ac});return r});
- if(mg){let a=await sb.from('emp_data').upsert(rows);if(a.error)throw a.error;
-  if(S.gone?.length){await sb.from('emp_data').delete().in('emp_id',S.gone);S.gone=[]}
-  a=await sb.from('cfg').upsert({id:1,closed:S.closed});if(a.error)throw a.error}
- else for(const r of rows){if(r.emp_id!=CFG.me)continue;const{emp_id,...u}=r,a=await sb.from('emp_data').update(u).eq('emp_id',emp_id);if(a.error)throw a.error}
+ if(mg&&U.role=='e'){
+  if(!CFG.me)throw new Error('店長尚未建立自己的員工資料');
+  const id=CFG.me,sub={},obj={};
+  Object.keys(S.sub).forEach(k=>{if(k.startsWith(id)&&S.sub[k])sub[k.slice(id.length)]=1});
+  Object.keys(S.obj).forEach(k=>{if(k.startsWith(id)&&S.obj[k])obj[k.slice(id.length)]=1});
+  const a=await sb.from('emp_data').update({av:S.av[id]||{},sub,obj,acks:S.acks?.[id]||{}}).eq('emp_id',id);
+  if(a.error)throw a.error;
+ }else if(mg){
+  const rows=EMP.map(e=>{const id=e.id,sub={},obj={},ac={...(S.acks?.[id]||{})},r={emp_id:id};
+   Object.keys(S.sub).forEach(k=>{if(k.startsWith(id)&&S.sub[k])sub[k.slice(id.length)]=1});Object.keys(S.obj).forEach(k=>{if(k.startsWith(id)&&S.obj[k])obj[k.slice(id.length)]=1});
+   Object.entries(S.off[id]).forEach(([d,a])=>{if(a.some(x=>x.st=='pend'))delete ac[d]});
+   Object.assign(r,{name:e.n,title:e.r,rate:e.rate,email:e.wp||null,off:S.off[id],punches:S.at[id],obj,acks:ac});return r});
+  let a=await sb.from('emp_data').upsert(rows);if(a.error)throw a.error;
+  if(S.gone?.length){a=await sb.from('emp_data').delete().in('emp_id',S.gone);if(a.error)throw a.error;S.gone=[]}
+  a=await sb.from('cfg').upsert({id:1,closed:S.closed});if(a.error)throw a.error;
+ }else{
+  const id=CFG.me,sub={},obj={};
+  Object.keys(S.sub).forEach(k=>{if(k.startsWith(id)&&S.sub[k])sub[k.slice(id.length)]=1});
+  Object.keys(S.obj).forEach(k=>{if(k.startsWith(id)&&S.obj[k])obj[k.slice(id.length)]=1});
+  const a=await sb.from('emp_data').update({av:S.av[id]||{},sub,obj,acks:S.acks?.[id]||{}}).eq('emp_id',id);if(a.error)throw a.error;
+ }
  dirty=0}catch(e){dirty=0;toast('同步失敗：'+(e.message||'請重新整理後再試'))}}
 const toast=m=>{const t=$('#t');t.textContent=m;t.hidden=false;clearTimeout(toast.i);toast.i=setTimeout(()=>t.hidden=true,2200)};
 const rng=hs=>{hs=[...hs].sort((a,b)=>a-b);const r=[];for(const h of hs){const l=r[r.length-1];if(l&&l[1]==h)l[1]=h+1;else r.push([h,h+1])}return r};
@@ -104,7 +117,7 @@ const emp=id=>EMP.find(x=>x.id==id);
 const O=x=>Array.isArray(x)?{}:x||{};
 function fix(){S.closed=S.closed||{};S.closed.wd=Array.isArray(S.closed.wd)?S.closed.wd:[];S.closed.dates=O(S.closed.dates);S.emps=S.emps||EMP;EMP=S.emps;['off','av','at','obj','sub'].forEach(m=>S[m]=O(S[m]));EMP.forEach(e=>['off','av','at'].forEach(m=>S[m][e.id]=O(S[m][e.id])))}
 function blank(){S={closed:{wd:[],dates:{}},emps:[],off:{},av:{},at:{},obj:{},sub:{}};EMP=S.emps}
-function boot(){if(CFG){if(!U.init){U.init=1;U.role=CFG.mgr?'m':'e'}const me=EMP.find(x=>x.wp==CFG.login);if(me&&!CFG.mgr)U.emp=me.id}if(!EMP.find(x=>x.id==U.emp)&&EMP[0])U.emp=EMP[0].id}
+function boot(){if(CFG){if(!U.init){U.init=1;U.role=CFG.mgr?'m':'e'}const me=EMP.find(x=>x.wp==CFG.login);if(me){CFG.me=me.id;if(!CFG.mgr||U.role=='e')U.emp=me.id}}if(!EMP.find(x=>x.id==U.emp)&&EMP[0])U.emp=EMP[0].id}
 async function load(){try{
  const[c,r]=await Promise.all([sb.from('cfg').select('closed').eq('id',1).maybeSingle(),sb.from('emp_data').select('*')]);if(r.error)throw r.error;
  S={closed:c.data?.closed||{wd:[],dates:{}},emps:[],off:{},av:{},at:{},obj:{},sub:{},acks:{},gone:[]};
@@ -124,7 +137,9 @@ async function doLogin(){const r=await sb.auth.signInWithPassword({email:$('#le'
 function week(){return[...Array(7)].map((_,i)=>addD(U.wk,i))}
 function wkNav(){const t=mon(TODAY),n=addD(t,7),w=ymd(U.wk);return `<div class=row><button class=b data-a=wk data-v=-1>◀ 上一週</button><button class="b ${w==ymd(t)?'p':''}" data-a=wk data-v=0>本週</button><button class="b ${w==ymd(n)?'p':''}" data-a=wk data-v=n>下週（重點提報）</button><button class=b data-a=wk data-v=1>下一週 ▶</button><b>${lb(U.wk)} - ${lb(addD(U.wk,6))}</b></div>`}
 function rEmp(){
- if(!emp(U.emp)&&EMP[0])U.emp=EMP[0].id;if(!EMP.length)return '<section>尚無員工，請店長先到「店長端」新增員工。</section>';if(CFG&&!CFG.mgr&&emp(U.emp).wp!=CFG.login)return '<section>您的帳號尚未綁定員工，請聯絡店長。</section>';const e=emp(U.emp),ds=week();let h=`<div class=row><select data-a=emp>${EMP.map(x=>`<option value=${x.id} ${x.id==U.emp?'selected':''}>${x.n}</option>`).join('')}</select><b>${e.n}</b> <span class=mute>${e.r}，時薪 NT$${e.rate}/h</span></div>`;
+ if(CFG?.mgr&&!CFG.me)return '<section><h2>建立店長自己的員工資料</h2><p>請填寫自己的資料。這會建立一筆綁定目前店長登入帳號的員工記錄，不會建立新登入帳號，也不會影響其他員工。</p><div class=row><input id=mn placeholder="姓名" required><input id=mt value="店長" placeholder="職位"><input id=mr type=number min=0 step=0.01 placeholder="時薪" style="width:110px"></div><div class=row><button class="b p" data-a=manager-profile>儲存我的資料</button></div></section>';
+ if(CFG?.mgr&&CFG.me)U.emp=CFG.me;
+ if(!emp(U.emp)&&EMP[0])U.emp=EMP[0].id;if(!EMP.length)return '<section>尚無員工，請店長先到「店長端」新增員工。</section>';if(CFG&&!CFG.mgr&&emp(U.emp).wp!=CFG.login)return '<section>您的帳號尚未綁定員工，請聯絡店長。</section>';const e=emp(U.emp),ds=week();let h=`${CFG?.mgr?'':'<div class=row><select data-a=emp>'+EMP.map(x=>`<option value=${x.id} ${x.id==U.emp?'selected':''}>${x.n}</option>`).join('')+'</select>'}<b>${e.n}</b> <span class=mute>${e.r}，時薪 NT${e.rate}/h</span></div>`;
  const pend=[];Object.entries(S.off[e.id]).forEach(([k,a])=>a.forEach(x=>{if(x.st=='pend')pend.push([k,x])}));
  pend.forEach(([k,x])=>{const d=pd(k);h+=`<div class=card><b>班次變動確認：店長調整了您的排班</b><div class=big>${lb(d)}</div><div class=big>${fh(x.s)} - ${fh(x.e)}</div><div class=mute>同意後才會正式生效</div><div class=row style="margin-top:8px"><button class="b p" data-a=ack data-k=${k}>✅ 同意此安排</button><button class=b data-a=obj data-k=${k}>💬 有異議，聯絡店長</button></div></div>`});
  const sh=okS(e.id,TK),a=S.at[e.id][TK]||{};
@@ -182,7 +197,7 @@ function chk(){const r=[];let ok=true,msg='';for(let i=0;i<2;i++){const s=$('#s'
  $('#er').textContent=msg?'⚠️ '+msg:'';$('#sv').disabled=!ok;return ok?r:null}
 function ack(id,k){(S.off[id][k]||[]).forEach(x=>{if(x.st=='pend')x.st='ok'});(S.acks=S.acks||{});(S.acks[id]=S.acks[id]||{})[k]=1;delete S.obj[id+k]}
 function act(a,d){
- if(a=='role'){if(!CFG?.mgr)return;U.role=d.v;}
+ if(a=='role'){if(!CFG?.mgr)return;U.role=d.v;if(d.v=='e'&&CFG.me)U.emp=CFG.me;}
  else if(a=='wk'){const t=mon(TODAY);U.wk=d.v=='0'?t:d.v=='n'?addD(t,7):addD(U.wk,7*+d.v)}
  else if(a=='ev')U.ev=d.v;
  else if(a=='tog'){const v=S.av[U.emp][d.k]||(S.av[U.emp][d.k]=[]),h=+d.h,i=v.indexOf(h);i<0?v.push(h):v.splice(i,1)}
@@ -191,7 +206,7 @@ function act(a,d){
  else if(a=='all')week().forEach(x=>{if(x>=TODAY&&!clo(ymd(x)))S.av[U.emp][ymd(x)]=[...H]});
  else if(a=='cpw')week().forEach(x=>{if(x>=TODAY&&!clo(ymd(x)))S.av[U.emp][ymd(x)]=[...(S.av[U.emp][ymd(addD(x,-7))]||[])]});
  else if(a=='clr')week().forEach(x=>{if(x>=TODAY)S.av[U.emp][ymd(x)]=[]});
- else if(a=='sub'){S.sub[U.emp+ymd(U.wk)]=1;toast('已提交，店長大盤已同步')}
+ else if(a=='sub'){S.sub[U.emp+ymd(U.wk)]=1;toast('已提交，正在同步到資料庫…')}
  else if(a=='ack'){ack(U.emp,d.k);toast('已確認，班次正式生效')}
  else if(a=='obj'){S.obj[U.emp+d.k]=1;toast('已通知店長，請等待溝通')}
  else if(a=='cd'){const k=d.k,o=S.off[U.emp][k]||[];mask(`<h2>${lb(pd(k))}</h2><p>${o.length?o.map(x=>fh(x.s)+'-'+fh(x.e)+(x.st=='ok'?'':'（待同意）')).join('<br>'):'當天休息'}</p><div class=row><button class="b p" data-a=rep data-k=${k}>✏️ 修改/重報此日空閒時段</button><button class=b data-a=close>關閉</button></div>`);return}
@@ -206,6 +221,7 @@ function act(a,d){
  else if(a=='disp'){const f=EMP.find(e=>!S.off[e.id][TK]?.length);if(f){S.off[f.id][TK]=[{s:17,e:21.5,st:'pend'}];toast(`已向${f.n}派單，待其同意`)}else toast('今日無可呼叫的休息員工')}
  else if(a=='out'){sb.auth.signOut().then(()=>location.reload());return}
  else if(a=='pw'){const p=prompt('請輸入新密碼（至少 6 碼）');if(p)staff('reset',{emp_id:d.e,password:p});return}
+ else if(a=='manager-profile'){const name=$('#mn').value.trim(),title=$('#mt').value.trim()||'店長',rate=Number($('#mr').value);if(!name){toast('請填寫姓名');return}if($('#mr').value.trim()===''||!Number.isFinite(rate)||rate<0){toast('請填寫有效的時薪');return}(async()=>{const u=await sb.auth.getUser();if(u.error||!u.data.user){toast('無法確認目前登入帳號');return}const id='mgr_'+u.data.user.id;const a=await sb.from('emp_data').insert({emp_id:id,name,title,rate,email:CFG.login,user_id:u.data.user.id,av:{},off:{},punches:{},sub:{},obj:{},acks:{}});if(a.error){toast('建立失敗：'+a.error.message);return}CFG.me=id;U.emp=id;await load();U.role='e';render();toast('店長員工資料已建立並綁定目前帳號')})() ;return}
  else if(a=='login'){doLogin();return}
  else if(a=='cw'){const w=+d.w,i=S.closed.wd.indexOf(w);if(i<0){S.closed.wd.push(w);const n=purge(k=>pd(k).getDay()==w);toast('已設為每週店休'+(n?'，移除 '+n+' 筆原有班次':''))}else S.closed.wd.splice(i,1)}
  else if(a=='cadd'){const k=$('#cd').value;if(!k){toast('請選擇日期');return}S.closed.dates[k]=$('#cn').value.trim();const n=purge(x=>x==k);toast('已新增店休日'+(n?'，移除 '+n+' 筆原有班次':''))}
