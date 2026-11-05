@@ -1,2 +1,3 @@
-// 填入 Supabase 專案的 URL 與 anon key（Project Settings → API）。留空則為單機示範模式。
+// 公開前端設定：只填 Supabase Project URL 與 anon public key。
+// 絕不可在此放入 service_role key 或任何伺服器端秘密。
 window.SS_ENV = { url: "", key: "" };
