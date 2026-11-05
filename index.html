@@ -168,7 +168,7 @@ function rMgr(){
  h+=cloMgr();h+=empMgr();const m=U.mm,y=m.getFullYear(),mo=m.getMonth(),arch=m<new Date(TODAY.getFullYear(),TODAY.getMonth(),1),n=new Date(y,mo+1,0).getDate(),off=(m.getDay()+6)%7;
  h+=`<section><h2>全月排班月曆 ${arch?'<span class="tag it">📂 已歸檔 / 只讀</span>':''}</h2><div class=row><button class=b data-a=mm data-v=-1>◀ 上月</button><b>${y}年${mo+1}月</b><button class=b data-a=mm data-v=1>下月 ▶</button><button class=b data-a=mm data-v=0>當前月</button><button class=b data-a=exp>📥 匯出月報</button></div><div class=sc><div class="cal mc">${['一','二','三','四','五','六','日'].map(x=>`<div class=h>周${x}</div>`).join('')}${'<div style="border:0"></div>'.repeat(off)}${[...Array(n)].map((_,i)=>{const k=ymd(new Date(y,mo,i+1)),L=clo(k)?'<br><span class=mute>店休'+(cln(k)?'：'+cln(k):'')+'</span>':EMP.map(e=>{const o=S.off[e.id][k]||[];return o.length?`<div class="chip ${o.every(x=>x.st=='ok')?'ok':'pd'}">${e.n} ${o.map(x=>fh(x.s)+'-'+fh(x.e)).join(', ')}</div>`:''}).join('');return `<div class="${k==TK?'td':''} ${clo(k)?'cl':''}"><b>${i+1}日</b>${L||'<br><span class=mute>無排班</span>'}</div>`}).join('')}</div></div></section>`;
  return h}
-function render(){if(CFG){$('.seg').hidden=!CFG.mgr}document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.v==U.role));$('#app').innerHTML=U.role=='e'?rEmp():rMgr();if(CFG&&!CFG.mgr){const s=$('[data-a=emp]');if(s)s.hidden=true}
+function render(){if(CFG){$('.seg').hidden=!CFG.mgr;if(!CFG.mgr)U.role='e'}document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.v==U.role));$('#app').innerHTML=U.role=='e'?rEmp():rMgr();if(CFG&&!CFG.mgr){const s=$('[data-a=emp]');if(s)s.hidden=true}
  if(U.focus){const el=$('#d'+U.focus);if(el)el.scrollIntoView({block:'center'});U.focus=null}}
 const mask=h=>{$('#sh').innerHTML=h;$('#m').hidden=false};
 const hideM=()=>$('#m').hidden=true;
@@ -182,7 +182,7 @@ function chk(){const r=[];let ok=true,msg='';for(let i=0;i<2;i++){const s=$('#s'
  $('#er').textContent=msg?'⚠️ '+msg:'';$('#sv').disabled=!ok;return ok?r:null}
 function ack(id,k){(S.off[id][k]||[]).forEach(x=>{if(x.st=='pend')x.st='ok'});(S.acks=S.acks||{});(S.acks[id]=S.acks[id]||{})[k]=1;delete S.obj[id+k]}
 function act(a,d){
- if(a=='role')U.role=d.v;
+ if(a=='role'){if(!CFG?.mgr)return;U.role=d.v;}
  else if(a=='wk'){const t=mon(TODAY);U.wk=d.v=='0'?t:d.v=='n'?addD(t,7):addD(U.wk,7*+d.v)}
  else if(a=='ev')U.ev=d.v;
  else if(a=='tog'){const v=S.av[U.emp][d.k]||(S.av[U.emp][d.k]=[]),h=+d.h,i=v.indexOf(h);i<0?v.push(h):v.splice(i,1)}
