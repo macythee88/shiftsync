@@ -18,11 +18,15 @@ $$ select is_mgr() or exists(select 1 from emp_data where user_id=auth.uid()) $$
 
 drop policy if exists cfg_read on cfg; drop policy if exists cfg_write on cfg;
 drop policy if exists emp_read on emp_data; drop policy if exists emp_mgr on emp_data; drop policy if exists emp_self on emp_data;
-create policy cfg_read on cfg for select using (is_staff());
+create policy cfg_read on cfg for select using (is_mgr() or is_staff());
 create policy cfg_write on cfg for all using (is_mgr()) with check (is_mgr());
-create policy emp_read on emp_data for select using (is_staff());
+
+-- Managers can access all employee rows; each employee can read only the row bound to their auth.uid().
+-- Do not use is_staff() as a blanket emp_data read policy: that exposes every employee row to any staff account.
+create policy emp_read on emp_data for select using (is_mgr() or user_id = auth.uid());
 create policy emp_mgr on emp_data for all using (is_mgr()) with check (is_mgr());
-create policy emp_self on emp_data for update using (user_id=auth.uid()) with check (user_id=auth.uid());
+create policy emp_self on emp_data for update using (user_id = auth.uid() and not is_mgr())
+ with check (user_id = auth.uid() and not is_mgr());
 
 -- 員工只能改自己的申報(av)、意向(sub/obj)、確認(acks)；班次、打卡、薪資、身分一律還原
 create or replace function emp_guard() returns trigger language plpgsql security definer set search_path=public as $$
