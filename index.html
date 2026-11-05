@@ -111,9 +111,9 @@ async function load(){try{
  r.data.forEach(x=>{const id=x.emp_id,ak=x.acks||{},o={};S.emps.push({id,n:x.name,r:x.title||'員工',rate:+x.rate||0,wp:(x.email||'').toLowerCase()});S.acks[id]=ak;
   Object.entries(x.off||{}).forEach(([d,a])=>o[d]=a.map(v=>({...v,st:v.st=='pend'&&ak[d]?'ok':v.st})));S.off[id]=o;S.av[id]=x.av||{};S.at[id]=x.punches||{};
   Object.keys(x.obj||{}).forEach(k=>S.obj[id+k]=1);Object.keys(x.sub||{}).forEach(k=>S.sub[id+k]=1)});
- fix();CFG.me=S.emps.find(e=>e.wp==CFG.login)?.id;boot();render()}catch(e){toast('載入失敗：'+(e.message||''))}}
+ fix();CFG.me=S.emps.find(e=>e.wp==CFG.login)?.id;if(!CFG.mgr&&!CFG.me){$('#app').innerHTML='<section><h2>帳號尚未綁定員工資料</h2><p>目前登入帳號沒有對應的員工資料列。請聯絡店長確認員工 Email 與登入帳號一致；系統不會顯示其他員工資料。</p></section>';return}boot();render()}catch(e){toast('載入失敗：'+(e.message||''))}}
 let poll;
-async function enter(se){await sb.rpc('claim_me');const m=await sb.rpc('is_mgr');CFG={mgr:!!m.data,login:se.user.email.toLowerCase()};$('#lg').hidden=true;$('[data-a=out]').hidden=false;blank();boot();render();await load();
+async function enter(se){const claim=await sb.rpc('claim_me');if(claim.error){showLogin('帳號綁定檢查失敗：'+claim.error.message);return}const m=await sb.rpc('is_mgr');if(m.error){showLogin('權限檢查失敗：'+m.error.message);return}CFG={mgr:!!m.data,login:se.user.email.toLowerCase()};$('#lg').hidden=true;$('[data-a=out]').hidden=false;blank();boot();render();await load();
  if(!poll)poll=setInterval(()=>{if(CFG&&!dirty&&$('#m').hidden&&document.activeElement.tagName!='INPUT'&&!document.querySelector('#disc.hold'))load()},30000)}
 async function staff(action,body){const r=await sb.functions.invoke('manage-staff',{body:{action,...body}});
  const m=r.error?(await r.error.context?.json?.().then(j=>j.error).catch(()=>null))||r.error.message:null;if(m){toast('失敗：'+m);return}
