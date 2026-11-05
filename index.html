@@ -63,8 +63,8 @@ button:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-
 @media(max-width:600px){.hrs{grid-template-columns:repeat(8,minmax(0,1fr))}.hrs button{font-size:11px;min-height:36px}.disc{width:170px;height:170px}}
 </style></head><body>
 <header><b>ShiftSync 餐飲排班與考勤</b>
-<div class="seg"><button data-a="role" data-v="e">員工端</button><button data-a="role" data-v="m">店長端</button></div>
-<button class="b" data-a="out" hidden>登出</button><button class="b" data-a="reset">重置演示資料</button></header>
+<div class="seg" hidden><button data-a="role" data-v="e">員工端</button><button data-a="role" data-v="m">店長端</button></div>
+<button class="b" data-a="out" hidden>登出</button></header>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <main id="app"></main>
@@ -81,13 +81,12 @@ const fh=h=>pad(Math.floor(h))+':'+(h%1?'30':'00');
 const ft=h=>pad(Math.floor(h))+':'+pad(Math.floor((h%1)*60));
 const WD=['週日','週一','週二','週三','週四','週五','週六'];
 const lb=d=>(d.getMonth()+1)+'/'+d.getDate()+' '+WD[d.getDay()];
-const DEF=[{id:'w',n:'王大叔',r:'後廚 · 備料/洗碗',rate:22},{id:'l',n:'李阿姨',r:'後廚 · 洗碗/幫工',rate:22},{id:'c',n:'陳廚師',r:'後廚 · 主廚',rate:30},{id:'z',n:'小張',r:'前廳 · 領班',rate:25}];
-let EMP=DEF;const H=[...Array(15)].map((_,i)=>i+9),NEED=3,KEY='shiftsync-v1';
+let EMP=[];const H=[...Array(15)].map((_,i)=>i+9),NEED=3;
 const TODAY=new Date();TODAY.setHours(0,0,0,0);const TK=ymd(TODAY);
 let S,U={role:'e',emp:'w',wk:mon(TODAY),mm:new Date(TODAY.getFullYear(),TODAY.getMonth(),1),ev:'cal',focus:null};
 let CFG=null,st,dirty=0;const ENV=window.SS_ENV||{},sb=ENV.url&&window.supabase?supabase.createClient(ENV.url,ENV.key):null;
-const save=()=>{if(!CFG){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}return}dirty=1;clearTimeout(st);st=setTimeout(push,400)};
-async function push(){try{const mg=CFG.mgr;
+const save=()=>{if(!CFG)return;dirty=1;clearTimeout(st);st=setTimeout(push,400)};
+async function push(){if(!CFG||!sb)return;try{const mg=CFG.mgr;
  const rows=EMP.map(e=>{const id=e.id,sub={},obj={},ac={...(S.acks?.[id]||{})},r={emp_id:id};
   Object.keys(S.sub).forEach(k=>{if(k.startsWith(id)&&S.sub[k])sub[k.slice(id.length)]=1});Object.keys(S.obj).forEach(k=>{if(k.startsWith(id)&&S.obj[k])obj[k.slice(id.length)]=1});
   if(mg){Object.entries(S.off[id]).forEach(([d,a])=>{if(a.some(x=>x.st=='pend'))delete ac[d]});Object.assign(r,{name:e.n,title:e.r,rate:e.rate,email:e.wp||null,off:S.off[id],punches:S.at[id],obj,acks:ac})}
@@ -102,18 +101,6 @@ const rng=hs=>{hs=[...hs].sort((a,b)=>a-b);const r=[];for(const h of hs){const l
 const cov=(a,s,e)=>{for(let h=s;h<e;h+=.5)if(!a.includes(Math.floor(h)))return false;return true};
 const okS=(id,k)=>(S.off[id]?.[k]||[]).filter(x=>x.st=='ok');
 const emp=id=>EMP.find(x=>x.id==id);
-function seed(){
- const T={w:{1:[[9,14],[17,21.5]],2:[[9,14]],4:[[9,14]],5:[[9,14]],6:[[8.5,22]]},l:{1:[[9,14]],2:[[9,14]],3:[[9,14]],4:[[9,14]],6:[[10,21]],0:[[10,21]]},c:{1:[[10,21]],2:[[10,21]],3:[[10,21]],5:[[10,22]],6:[[10,22]],0:[[10,21]]},z:{1:[[9,18]],2:[[9,18]],4:[[9,18]],5:[[9,18]],6:[[9,22]],0:[[9,18]]}};
- S={closed:{wd:[],dates:{}},emps:DEF.map(x=>({...x})),off:{},av:{},at:{},obj:{},sub:{}};EMP=S.emps;EMP.forEach(e=>{S.off[e.id]={};S.av[e.id]={};S.at[e.id]={}});
- const m0=mon(TODAY),end=addD(m0,6);
- for(let d=addD(TODAY,-30);d<=end;d=addD(d,1)){const k=ymd(d);
-  EMP.forEach(e=>{const s=T[e.id][d.getDay()];if(!s)return;S.off[e.id][k]=s.map(([a,b])=>({s:a,e:b,st:'ok'}));
-   if(d<TODAY)S.at[e.id][k]={i:s[0][0]-.05,o:s[s.length-1][1]+.03}})}
- S.off.l[ymd(addD(m0,4))]=[{s:17,e:22,st:'pend'}];
- const t=S.at;if(S.off.w[TK])t.w[TK]={i:8.9};if(S.off.l[TK])t.l[TK]={i:8.97};
- const nw=addD(m0,7),f=(id,hs)=>{for(let i=0;i<5;i++)S.av[id][ymd(addD(nw,i))]=hs};
- f('w',[9,10,11,12,13,17,18,19,20]);f('l',[9,10,11,12,13]);f('z',[9,10,11,12,13,14,15,16,17]);
-}
 const O=x=>Array.isArray(x)?{}:x||{};
 function fix(){S.closed=S.closed||{};S.closed.wd=Array.isArray(S.closed.wd)?S.closed.wd:[];S.closed.dates=O(S.closed.dates);S.emps=S.emps||EMP;EMP=S.emps;['off','av','at','obj','sub'].forEach(m=>S[m]=O(S[m]));EMP.forEach(e=>['off','av','at'].forEach(m=>S[m][e.id]=O(S[m][e.id])))}
 function blank(){S={closed:{wd:[],dates:{}},emps:[],off:{},av:{},at:{},obj:{},sub:{}};EMP=S.emps}
@@ -124,16 +111,16 @@ async function load(){try{
  r.data.forEach(x=>{const id=x.emp_id,ak=x.acks||{},o={};S.emps.push({id,n:x.name,r:x.title||'員工',rate:+x.rate||0,wp:(x.email||'').toLowerCase()});S.acks[id]=ak;
   Object.entries(x.off||{}).forEach(([d,a])=>o[d]=a.map(v=>({...v,st:v.st=='pend'&&ak[d]?'ok':v.st})));S.off[id]=o;S.av[id]=x.av||{};S.at[id]=x.punches||{};
   Object.keys(x.obj||{}).forEach(k=>S.obj[id+k]=1);Object.keys(x.sub||{}).forEach(k=>S.sub[id+k]=1)});
- fix();CFG.me=S.emps.find(e=>e.wp==CFG.login)?.id;boot();render()}catch(e){toast('載入失敗：'+(e.message||''))}}
+ fix();CFG.me=S.emps.find(e=>e.wp==CFG.login)?.id;if(!CFG.mgr&&!CFG.me){$('#app').innerHTML='<section><h2>帳號尚未綁定員工資料</h2><p>目前登入帳號沒有對應的員工資料列。請聯絡店長確認員工 Email 與登入帳號一致；系統不會顯示其他員工資料。</p></section>';return}boot();render()}catch(e){toast('載入失敗：'+(e.message||''))}}
 let poll;
-async function enter(se){await sb.rpc('claim_me');const m=await sb.rpc('is_mgr');CFG={mgr:!!m.data,login:se.user.email.toLowerCase()};$('#lg').hidden=true;$('[data-a=out]').hidden=false;blank();boot();render();await load();
+async function enter(se){const claim=await sb.rpc('claim_me');if(claim.error){showLogin('帳號綁定檢查失敗：'+claim.error.message);return}const m=await sb.rpc('is_mgr');if(m.error){showLogin('權限檢查失敗：'+m.error.message);return}CFG={mgr:!!m.data,login:se.user.email.toLowerCase()};$('#lg').hidden=true;$('[data-a=out]').hidden=false;blank();boot();render();await load();
  if(!poll)poll=setInterval(()=>{if(CFG&&!dirty&&$('#m').hidden&&document.activeElement.tagName!='INPUT'&&!document.querySelector('#disc.hold'))load()},30000)}
 async function staff(action,body){const r=await sb.functions.invoke('manage-staff',{body:{action,...body}});
  const m=r.error?(await r.error.context?.json?.().then(j=>j.error).catch(()=>null))||r.error.message:null;if(m){toast('失敗：'+m);return}
  toast(action=='add'?'已新增員工並建立登入帳號':action=='remove'?'已刪除員工與帳號':'已重設密碼');await load()}
 function showLogin(t){$('#lg').hidden=false;$('#lm').textContent=t||''}
 async function doLogin(){const r=await sb.auth.signInWithPassword({email:$('#le').value.trim(),password:$('#lp').value});if(r.error){showLogin('登入失敗：帳號或密碼錯誤');return}enter(r.data.session)}
-if(!CFG){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!S||!S.off)seed()}
+
 function week(){return[...Array(7)].map((_,i)=>addD(U.wk,i))}
 function wkNav(){const t=mon(TODAY),n=addD(t,7),w=ymd(U.wk);return `<div class=row><button class=b data-a=wk data-v=-1>◀ 上一週</button><button class="b ${w==ymd(t)?'p':''}" data-a=wk data-v=0>本週</button><button class="b ${w==ymd(n)?'p':''}" data-a=wk data-v=n>下週（重點提報）</button><button class=b data-a=wk data-v=1>下一週 ▶</button><b>${lb(U.wk)} - ${lb(addD(U.wk,6))}</b></div>`}
 function rEmp(){
@@ -160,7 +147,7 @@ function rEmp(){
 const clo=k=>S.closed.wd.includes(pd(k).getDay())||k in S.closed.dates;const cln=k=>S.closed.dates[k]||'';
 function purge(f){let n=0;EMP.forEach(e=>{[S.off[e.id],S.av[e.id]].forEach((m,j)=>Object.keys(m).forEach(k=>{if(k>=TK&&f(k)){if(j==0)n+=m[k].length;delete m[k]}}))});return n}
 function cloMgr(){const ds=Object.keys(S.closed.dates).sort();return `<section><h2>店休設定</h2><div class=mute>每週固定店休（點選切換）</div><div class=row>${[1,2,3,4,5,6,0].map(w=>`<button class="b ${S.closed.wd.includes(w)?'p':''}" data-a=cw data-w=${w}>${WD[w]}</button>`).join('')}</div><div class=mute>特定日期店休（例如國定假日、臨時公休）</div><div class=row><input id=cd type=date><input id=cn placeholder='備註（選填）'><button class='b p' data-a=cadd>➕ 新增店休日</button></div><div class=row>${ds.map(k=>`<span class='tag it'>${lb(pd(k))}${S.closed.dates[k]?'：'+S.closed.dates[k]:''} <button class=b style='min-height:26px;padding:0 6px' data-a=cdel data-k=${k}>✕</button></span>`).join('')||'<span class=mute>尚無特定店休日</span>'}</div><div class=mute>設為店休後，該日（今天起）已有的班次與員工申報會被移除，員工也無法再申報該日。</div></section>`}
-function empMgr(){return `<section><h2>員工管理</h2><div class=sc><table><tr><th>姓名<th>職位<th>時薪<th>登入 Email<th></tr>${EMP.map(e=>`<tr><td>${e.n}<td>${e.r}<td>NT$${e.rate}<td>${e.wp||'-'}<td>${CFG?`<button class=b data-a=pw data-e=${e.id}>重設密碼</button> `:''}<button class=b data-a=rm data-e=${e.id}>${U.del==e.id?'再按一次確認刪除':'刪除'}</button></tr>`).join('')}</table></div><div class=row style='margin-top:8px'><input id=en placeholder='姓名'><input id=er2 placeholder='職位（如 後廚）'><input id=ert type=number placeholder='時薪' style='width:90px'><input id=ew placeholder='員工登入 Email'><input id=ep type=password placeholder='臨時密碼（至少 6 碼）'><button class='b p' data-a=addemp>➕ 新增員工</button></div><div class=mute>員工用自己的 登入 Email登入後，只能看到並操作自己的排班。</div><div class=row style='margin-top:8px'><button class=b data-a=blank>🧹 清空示範資料，從零開始</button></div></section>`}
+function empMgr(){return `<section><h2>員工管理</h2><div class=sc><table><tr><th>姓名<th>職位<th>時薪<th>登入 Email<th></tr>${EMP.map(e=>`<tr><td>${e.n}<td>${e.r}<td>NT$${e.rate}<td>${e.wp||'-'}<td>${CFG?`<button class=b data-a=pw data-e=${e.id}>重設密碼</button> `:''}<button class=b data-a=rm data-e=${e.id}>${U.del==e.id?'再按一次確認刪除':'刪除'}</button></tr>`).join('')}</table></div><div class=row style='margin-top:8px'><input id=en placeholder='姓名'><input id=er2 placeholder='職位（如 後廚）'><input id=ert type=number placeholder='時薪' style='width:90px'><input id=ew placeholder='員工登入 Email'><input id=ep type=password placeholder='臨時密碼（至少 6 碼）'><button class='b p' data-a=addemp>➕ 新增員工</button></div><div class=mute>員工用自己的 登入 Email登入後，只能看到並操作自己的排班。</div></section>`}
 function gap(k){return [['午市',11,14],['晚市',17,21]].map(([n,s,e])=>[n,EMP.filter(m=>okS(m.id,k).some(x=>Math.min(x.e,e)-Math.max(x.s,s)>=1.5)).length])}
 function cell(e,d){const k=ymd(d),o=S.off[e.id][k];let h='';if(clo(k))return `<td class=cl data-a=cell data-e=${e.id} data-d=${k}>店休${cln(k)?'<div class=mute>'+cln(k)+'</div>':''}</td>`;
  if(o?.length)h=o.map(x=>`<div class="chip ${x.st=='ok'?'ok':'pd'}">${fh(x.s)}-${fh(x.e)}${x.st=='ok'?'':' 待同意'}</div>`).join('');
@@ -181,7 +168,7 @@ function rMgr(){
  h+=cloMgr();h+=empMgr();const m=U.mm,y=m.getFullYear(),mo=m.getMonth(),arch=m<new Date(TODAY.getFullYear(),TODAY.getMonth(),1),n=new Date(y,mo+1,0).getDate(),off=(m.getDay()+6)%7;
  h+=`<section><h2>全月排班月曆 ${arch?'<span class="tag it">📂 已歸檔 / 只讀</span>':''}</h2><div class=row><button class=b data-a=mm data-v=-1>◀ 上月</button><b>${y}年${mo+1}月</b><button class=b data-a=mm data-v=1>下月 ▶</button><button class=b data-a=mm data-v=0>當前月</button><button class=b data-a=exp>📥 匯出月報</button></div><div class=sc><div class="cal mc">${['一','二','三','四','五','六','日'].map(x=>`<div class=h>周${x}</div>`).join('')}${'<div style="border:0"></div>'.repeat(off)}${[...Array(n)].map((_,i)=>{const k=ymd(new Date(y,mo,i+1)),L=clo(k)?'<br><span class=mute>店休'+(cln(k)?'：'+cln(k):'')+'</span>':EMP.map(e=>{const o=S.off[e.id][k]||[];return o.length?`<div class="chip ${o.every(x=>x.st=='ok')?'ok':'pd'}">${e.n} ${o.map(x=>fh(x.s)+'-'+fh(x.e)).join(', ')}</div>`:''}).join('');return `<div class="${k==TK?'td':''} ${clo(k)?'cl':''}"><b>${i+1}日</b>${L||'<br><span class=mute>無排班</span>'}</div>`}).join('')}</div></div></section>`;
  return h}
-function render(){if(CFG){$('.seg').hidden=!CFG.mgr;$('[data-a=reset]').hidden=true}document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.v==U.role));$('#app').innerHTML=U.role=='e'?rEmp():rMgr();if(CFG&&!CFG.mgr){const s=$('[data-a=emp]');if(s)s.hidden=true}
+function render(){if(CFG){$('.seg').hidden=!CFG.mgr;if(!CFG.mgr)U.role='e'}document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.v==U.role));$('#app').innerHTML=U.role=='e'?rEmp():rMgr();if(CFG&&!CFG.mgr){const s=$('[data-a=emp]');if(s)s.hidden=true}
  if(U.focus){const el=$('#d'+U.focus);if(el)el.scrollIntoView({block:'center'});U.focus=null}}
 const mask=h=>{$('#sh').innerHTML=h;$('#m').hidden=false};
 const hideM=()=>$('#m').hidden=true;
@@ -195,8 +182,7 @@ function chk(){const r=[];let ok=true,msg='';for(let i=0;i<2;i++){const s=$('#s'
  $('#er').textContent=msg?'⚠️ '+msg:'';$('#sv').disabled=!ok;return ok?r:null}
 function ack(id,k){(S.off[id][k]||[]).forEach(x=>{if(x.st=='pend')x.st='ok'});(S.acks=S.acks||{});(S.acks[id]=S.acks[id]||{})[k]=1;delete S.obj[id+k]}
 function act(a,d){
- if(a=='role')U.role=d.v;
- else if(a=='reset'){seed();toast('已重置為演示資料')}
+ if(a=='role'){if(!CFG?.mgr)return;U.role=d.v;}
  else if(a=='wk'){const t=mon(TODAY);U.wk=d.v=='0'?t:d.v=='n'?addD(t,7):addD(U.wk,7*+d.v)}
  else if(a=='ev')U.ev=d.v;
  else if(a=='tog'){const v=S.av[U.emp][d.k]||(S.av[U.emp][d.k]=[]),h=+d.h,i=v.indexOf(h);i<0?v.push(h):v.splice(i,1)}
@@ -224,9 +210,9 @@ function act(a,d){
  else if(a=='cw'){const w=+d.w,i=S.closed.wd.indexOf(w);if(i<0){S.closed.wd.push(w);const n=purge(k=>pd(k).getDay()==w);toast('已設為每週店休'+(n?'，移除 '+n+' 筆原有班次':''))}else S.closed.wd.splice(i,1)}
  else if(a=='cadd'){const k=$('#cd').value;if(!k){toast('請選擇日期');return}S.closed.dates[k]=$('#cn').value.trim();const n=purge(x=>x==k);toast('已新增店休日'+(n?'，移除 '+n+' 筆原有班次':''))}
  else if(a=='cdel'){delete S.closed.dates[d.k]}
- else if(a=='addemp'){const n=$('#en').value.trim();if(!n){toast('請輸入姓名');return}if(CFG){staff('add',{name:n,title:$('#er2').value.trim()||'員工',rate:+$('#ert').value||0,email:$('#ew').value.trim().toLowerCase(),password:$('#ep').value});return}const id='e'+Date.now().toString(36);EMP.push({id,n,r:$('#er2').value.trim()||'員工',rate:+$('#ert').value||0,wp:$('#ew').value.trim().toLowerCase()});['off','av','at'].forEach(m=>S[m][id]={});toast('已新增 '+n)}
- else if(a=='rm'){if(U.del!=d.e){U.del=d.e;render();return}U.del=null;if(CFG){staff('remove',{emp_id:d.e});return}(S.gone=S.gone||[]).push(d.e);S.emps=EMP=EMP.filter(e=>e.id!=d.e);['off','av','at'].forEach(m=>delete S[m][d.e]);toast('已刪除員工')}
- else if(a=='blank'){if(CFG){toast('正式環境請逐一刪除員工');return}if(U.del!='all'){U.del='all';toast('再按一次確認清空全部資料');return}U.del=null;const ids=EMP.map(e=>e.id);blank();S.gone=ids}
+ else if(a=='addemp'){const n=$('#en').value.trim();if(!n){toast('請輸入姓名');return}if(CFG){staff('add',{name:n,title:$('#er2').value.trim()||'員工',rate:+$('#ert').value||0,email:$('#ew').value.trim().toLowerCase(),password:$('#ep').value});return}toast('正式系統必須先完成登入與伺服器連線')}
+ else if(a=='rm'){if(U.del!=d.e){U.del=d.e;render();return}U.del=null;if(CFG){staff('remove',{emp_id:d.e});return}toast('正式系統必須先完成登入與伺服器連線')}
+
  else if(a=='mm')U.mm=d.v=='0'?new Date(TODAY.getFullYear(),TODAY.getMonth(),1):new Date(U.mm.getFullYear(),U.mm.getMonth()+ +d.v,1);
  else if(a=='exp'){const y=U.mm.getFullYear(),m=U.mm.getMonth(),L=['日期,員工,班次,狀態'];for(let i=1;i<=new Date(y,m+1,0).getDate();i++){const k=ymd(new Date(y,m,i));EMP.forEach(e=>(S.off[e.id][k]||[]).forEach(x=>L.push([k,e.n,fh(x.s)+'-'+fh(x.e),x.st=='ok'?'已生效':'待同意'].join(','))))}mask(`<h2>${y}年${m+1}月 排班月報（CSV）</h2><textarea readonly>${L.join('\n')}</textarea><div class=mute>全選複製後貼上到 Excel 即可</div><div class=row><button class=b data-a=close>關閉</button></div>`);return}
  save();render()}
@@ -235,5 +221,5 @@ document.addEventListener('change',e=>{const s=e.target;if(s.dataset.a=='emp'){U
 $('#m').addEventListener('click',e=>{if(e.target.id=='m')hideM()});
 let ht;document.addEventListener('pointerdown',e=>{const b=e.target.closest('#disc');if(!b||b.disabled)return;b.classList.add('hold');ht=setTimeout(()=>{if(CFG){sb.rpc('punch_me').then(r=>{if(r.error)toast('打卡失敗');else{load();toast('打卡成功')}});return}const id=U.emp,a=S.at[id][TK]||(S.at[id][TK]={}),n=new Date();a[a.i==null?'i':'o']=n.getHours()+n.getMinutes()/60;save();render();toast('打卡成功')},500)});
 ['pointerup','pointerleave','pointercancel'].forEach(t=>document.addEventListener(t,e=>{if(e.target.closest&&e.target.closest('#disc')||t!='pointerleave'){clearTimeout(ht);document.querySelector('#disc')?.classList.remove('hold')}}));
-if(sb){sb.auth.getSession().then(({data})=>data.session?enter(data.session):showLogin())}else{fix();boot();render()}
+if(!sb){$('#app').innerHTML='<section><h2>系統尚未完成正式環境設定</h2><p>請管理員在部署環境設定 Supabase Project URL 與 anon public key。為保護正式員工資料，系統不再提供本機演示模式或演示資料重置。</p></section>';$('#lg').hidden=true;}else{sb.auth.getSession().then(({data})=>data.session?enter(data.session):showLogin())}
 </script></body></html>
