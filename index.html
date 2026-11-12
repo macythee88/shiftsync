@@ -77,11 +77,11 @@ const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const pd=s=>{const[a,b,c]=s.split('-');return new Date(+a,+b-1,+c)};
 const addD=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 const mon=d=>addD(d,-((d.getDay()+6)%7));
-const fh=h=>pad(Math.floor(h))+':'+(h%1?'30':'00');
+const fh=h=>pad(Math.floor(h%24))+':'+(h%1?'30':'00');
 const ft=h=>pad(Math.floor(h))+':'+pad(Math.floor((h%1)*60));
 const WD=['週日','週一','週二','週三','週四','週五','週六'];
 const lb=d=>(d.getMonth()+1)+'/'+d.getDate()+' '+WD[d.getDay()];
-let EMP=[];const H=[...Array(15)].map((_,i)=>i+9),NEED=3;
+let EMP=[];const H=[...Array(19)].map((_,i)=>i+7),NEED=3;
 const TODAY=new Date();TODAY.setHours(0,0,0,0);const TK=ymd(TODAY);
 let S,U={role:'e',emp:'w',wk:mon(TODAY),mm:new Date(TODAY.getFullYear(),TODAY.getMonth(),1),ev:'cal',focus:null};
 let CFG=null,st,dirty=0;const ENV=window.SS_ENV||{},sb=ENV.url&&window.supabase?supabase.createClient(ENV.url,ENV.key):null;
@@ -120,11 +120,11 @@ function blank(){S={closed:{wd:[],dates:{}},emps:[],off:{},av:{},at:{},obj:{},su
 function boot(){if(CFG){if(!U.init){U.init=1;U.role=CFG.mgr?'m':'e'}const me=EMP.find(x=>x.wp==CFG.login);if(me){CFG.me=me.id;if(!CFG.mgr||U.role=='e')U.emp=me.id}}if(!EMP.find(x=>x.id==U.emp)&&EMP[0])U.emp=EMP[0].id}
 async function load(){try{
  const[c,r]=await Promise.all([sb.from('cfg').select('closed').eq('id',1).maybeSingle(),sb.from('emp_data').select('*')]);if(r.error)throw r.error;
- S={closed:c.data?.closed||{wd:[],dates:{}},emps:[],off:{},av:{},at:{},obj:{},sub:{},acks:{},gone:[]};
+ S={closed:c.data?.closed||{wd:[],dates:{}},emps:[],off:{},av:{},at:{},obj:{},sub:{},acks:{},gone:[],notifs:[]};
  r.data.forEach(x=>{const id=x.emp_id,ak=x.acks||{},o={};S.emps.push({id,n:x.name,r:x.title||'員工',rate:+x.rate||0,wp:(x.email||'').toLowerCase()});S.acks[id]=ak;
   Object.entries(x.off||{}).forEach(([d,a])=>o[d]=a.map(v=>({...v,st:v.st=='pend'&&ak[d]?'ok':v.st})));S.off[id]=o;S.av[id]=x.av||{};S.at[id]=x.punches||{};
   Object.keys(x.obj||{}).forEach(k=>S.obj[id+k]=1);Object.keys(x.sub||{}).forEach(k=>S.sub[id+k]=1)});
- fix();CFG.me=S.emps.find(e=>e.wp==CFG.login)?.id;if(!CFG.mgr&&!CFG.me){$('#app').innerHTML='<section><h2>帳號尚未綁定員工資料</h2><p>目前登入帳號沒有對應的員工資料列。請聯絡店長確認員工 Email 與登入帳號一致；系統不會顯示其他員工資料。</p></section>';return}boot();render()}catch(e){toast('載入失敗：'+(e.message||''))}}
+ fix();CFG.me=S.emps.find(e=>e.wp==CFG.login)?.id;if(CFG.mgr){const nr=await sb.from('manager_notifications').select('*').order('created_at',{ascending:false}).limit(50);if(!nr.error)S.notifs=nr.data||[]}if(!CFG.mgr&&!CFG.me){$('#app').innerHTML='<section><h2>帳號尚未綁定員工資料</h2><p>目前登入帳號沒有對應的員工資料列。請聯絡店長確認員工 Email 與登入帳號一致；系統不會顯示其他員工資料。</p></section>';return}boot();render()}catch(e){toast('載入失敗：'+(e.message||''))}}
 let poll;
 async function enter(se){const claim=await sb.rpc('claim_me');if(claim.error){showLogin('帳號綁定檢查失敗：'+claim.error.message);return}const m=await sb.rpc('is_mgr');if(m.error){showLogin('權限檢查失敗：'+m.error.message);return}CFG={mgr:!!m.data,login:se.user.email.toLowerCase()};$('#lg').hidden=true;$('[data-a=out]').hidden=false;blank();boot();render();await load();
  if(!poll)poll=setInterval(()=>{if(CFG&&!dirty&&$('#m').hidden&&document.activeElement.tagName!='INPUT'&&!document.querySelector('#disc.hold'))load()},30000)}
@@ -134,7 +134,9 @@ async function staff(action,body){const r=await sb.functions.invoke('manage-staf
 function showLogin(t){$('#lg').hidden=false;$('#lm').textContent=t||''}
 async function doLogin(){const r=await sb.auth.signInWithPassword({email:$('#le').value.trim(),password:$('#lp').value});if(r.error){showLogin('登入失敗：帳號或密碼錯誤');return}enter(r.data.session)}
 
-function week(){return[...Array(7)].map((_,i)=>addD(U.wk,i))}
+async function submitDay(k){const id=CFG?.me||U.emp;if(!id||!emp(id)){toast('找不到員工帳號');return}const vals=S.av[id][k]||[];if(!vals.length){toast('請先選擇時段');return}const action=S.sub[id+k]?'updated':'submitted';const sub={};Object.keys(S.sub).forEach(x=>{if(x.startsWith(id)&&S.sub[x])sub[x.slice(id.length)]=1});sub[k]=1;const up=await sb.from('emp_data').update({av:S.av[id]||{},sub}).eq('emp_id',id);if(up.error){toast('提交失敗：'+up.error.message);return}const n=await sb.from('manager_notifications').insert({emp_id:id,work_date:k,action,details:{hours:vals}});if(n.error){toast('意向已保存，但通知店長失敗：'+n.error.message);return}S.sub[id+k]=1;toast('當天意向已提交，店長已收到通知');render()}
+async function cancelDay(k){if(!confirm('確定取消這一天已提交的意向？店長會收到通知。'))return;const id=CFG?.me||U.emp;if(!id)return;const old=[...(S.av[id][k]||[])],av={...S.av[id]};delete av[k];const sub={};Object.keys(S.sub).forEach(x=>{if(x.startsWith(id)&&S.sub[x]&&x.slice(id.length)!==k)sub[x.slice(id.length)]=1});const up=await sb.from('emp_data').update({av,sub}).eq('emp_id',id);if(up.error){toast('取消失敗：'+up.error.message);return}const n=await sb.from('manager_notifications').insert({emp_id:id,work_date:k,action:'cancelled',details:{previous_hours:old}});if(n.error){toast('意向已取消，但通知店長失敗：'+n.error.message);return}S.av[id]=av;delete S.sub[id+k];toast('當天意向已取消，店長已收到通知');render()}
+\nfunction week(){return[...Array(7)].map((_,i)=>addD(U.wk,i))}
 function wkNav(){const t=mon(TODAY),n=addD(t,7),w=ymd(U.wk);return `<div class=row><button class=b data-a=wk data-v=-1>◀ 上一週</button><button class="b ${w==ymd(t)?'p':''}" data-a=wk data-v=0>本週</button><button class="b ${w==ymd(n)?'p':''}" data-a=wk data-v=n>下週（重點提報）</button><button class=b data-a=wk data-v=1>下一週 ▶</button><b>${lb(U.wk)} - ${lb(addD(U.wk,6))}</b></div>`}
 function rEmp(){
  if(CFG?.mgr&&!CFG.me)return '<section><h2>建立店長自己的員工資料</h2><p>請填寫自己的資料。這會建立一筆綁定目前店長登入帳號的員工記錄，不會建立新登入帳號，也不會影響其他員工。</p><div class=row><input id=mn placeholder="姓名" required><input id=mt value="店長" placeholder="職位"><input id=mr type=number min=0 step=0.01 placeholder="時薪" style="width:110px"></div><div class=row><button class="b p" data-a=manager-profile>儲存我的資料</button></div></section>';
@@ -149,14 +151,14 @@ function rEmp(){
   h+=`<div class=mute>📍 當前定位：門店範圍內（距離 15 米） · 今日班次 ${sh.map(x=>fh(x.s)+'-'+fh(x.e)).join('，')}</div><button class="disc ${cls}" id=disc ${cls=='dn'?'disabled':''}>${tx}</button><div class=mute>${cls=='dn'?'':'長按 0.5 秒打卡，防止誤觸'}</div>`;
   if(a.i)h+=`<div>上班 ${ft(a.i)} ${a.i<=sh[0].s+.1?'<span class="tag ok">準時</span>':'<span class="tag rd">遲到</span>'}${a.o?' · 下班 '+ft(a.o):''}</div>`}
  h+='</div></section>';
- h+=`<section><h2>排班與申報</h2><div class=row><button class="b ${U.ev=='cal'?'p':''}" data-a=ev data-v=cal>日曆檢視</button><button class="b ${U.ev=='tl'?'p':''}" data-a=ev data-v=tl>時間表明細</button></div>${wkNav()}`;
+ h+=`<section><h2>我的班表（月曆）</h2><div class=row><button class=b data-a=em data-v=-1>◀ 上月</button><b>${U.mm.getFullYear()}年${U.mm.getMonth()+1}月</b><button class=b data-a=em data-v=1>下月 ▶</button><button class=b data-a=em data-v=0>本月</button></div><div class=cal>${['日','一','二','三','四','五','六'].map(x=>`<div class=h>${x}</div>`).join('')}${'<div style="border:0"></div>'.repeat(U.mm.getDay())}${[...Array(new Date(U.mm.getFullYear(),U.mm.getMonth()+1,0).getDate())].map((_,i)=>{const d=new Date(U.mm.getFullYear(),U.mm.getMonth(),i+1),k=ymd(d),o=okS(e.id,k);return `<div class=c data-a=cd data-k=${k}><b>${i+1}</b>${o.length?o.map(x=>`<div class="chip ok">${fh(x.s)}–${fh(x.e)}${x.e>=24?'（隔日）':''}</div>`).join(''):'<span class=mute>休息</span>'}</div>`}).join('')}</div><div class=mute>点击日期查看当天正式班次；跨日班次标示隔日。</div></section><section><h2>排班與申報</h2><div class=row><button class="b ${U.ev=='cal'?'p':''}" data-a=ev data-v=cal>日曆檢視</button><button class="b ${U.ev=='tl'?'p':''}" data-a=ev data-v=tl>時間表明細</button></div>${wkNav()}`;
  if(U.ev=='cal'){h+='<div class=cal>'+['一','二','三','四','五','六','日'].map(x=>`<div class=h>周${x}</div>`).join('')+ds.map(d=>{const k=ymd(d),o=S.off[e.id][k]||[];let c=o.length?o.map(x=>`<div class="chip ${x.st=='ok'?'ok':'pd'}">${fh(x.s)}-${fh(x.e)}${x.st=='ok'?'':' ⏳'}</div>`).join(''):'<span class=mute>休息</span>';return `<div class="c ${k==TK?'td':''}" data-a=cd data-k=${k}><b>${d.getMonth()+1}/${d.getDate()}</b>${clo(k)?'<span class=mute>店休</span>':c}</div>`}).join('')+'</div><div class=mute style="margin-top:6px">點選任意日期，可檢視班次或重報空閒時段</div>'}
  else{let tot=0,pay=0;const rows=ds.map(d=>{const k=ymd(d),o=okS(e.id,k);if(!o.length)return '';const a=S.at[e.id][k]||{},pl=o.reduce((s,x)=>s+x.e-x.s,0),hr=a.i!=null&&a.o!=null?a.o-a.i:pl,pa=hr*e.rate;tot+=hr;pay+=pa;return `<tr><td>${lb(d)}</td><td>${o.map(x=>fh(x.s)+'-'+fh(x.e)).join(', ')}</td><td>${a.i!=null?ft(a.i)+' 簽到 / '+(a.o!=null?ft(a.o)+' 簽退':'未簽退'):'-'}</td><td>${hr.toFixed(1)} h${a.o==null?'（預估）':''}</td><td>NT$${pa.toFixed(0)}</td></tr>`}).join('');
   h+=`<div class=sc><table><tr><th>日期<th>計劃班次<th>打卡記錄<th>工時<th>預估薪資</tr>${rows}<tr><th colspan=3>本週合計<th>${tot.toFixed(1)} h<th>NT$${pay.toFixed(0)}</tr></table></div>`}
  h+='</section>';
  const sb=S.sub[e.id+ymd(U.wk)];
- h+=`<section><h2>空閒時段申報（09:00 - 24:00，點格子選擇）</h2>${sb?'<span class="tag ok">本週已提交，仍可修改並重新提交</span>':''}<div class=row style="margin-top:6px"><button class=b data-a=all>✅ 一鍵全選本週</button><button class=b data-a=cpw>🔄 複製上週申報</button><button class=b data-a=clr>❌ 清空</button></div>`;
- h+=ds.map(d=>{const k=ymd(d),past=d<TODAY,v=S.av[e.id][k]||[];return `<div class="day ${U.focus==k?'f':''}" id=d${k}><div class=row><b>${lb(d)}</b>${clo(k)?'<span class="tag it">店休'+(cln(k)?'：'+cln(k):'')+'</span>':past?'<span class=mute>已過期</span>':`<button class=b data-a=day data-k=${k}>全選當天</button><button class=b data-a=prevday data-k=${k}>同前一天</button>`}</div><div class=hrs>${H.map(x=>`<button data-a=tog data-k=${k} data-h=${x} class="${v.includes(x)?'on':''}" ${past||clo(k)?'disabled':''}>${pad(x)}</button>`).join('')}</div></div>`}).join('');
+ h+=`<section><h2>排班意向（07:00–隔日 02:00）</h2><div class=row><button class=b data-a=qall>全選本週</button><button class=b data-a=qmor>上午全選</button><button class=b data-a=qnoon>中午全選</button><button class=b data-a=qeve>晚上全選</button></div>${sb?'<span class="tag ok">本週已提交，仍可修改並重新提交</span>':''}<div class=row style="margin-top:6px"><button class=b data-a=all>✅ 一鍵全選本週</button><button class=b data-a=cpw>🔄 複製上週申報</button><button class=b data-a=clr>❌ 清空</button></div>`;
+ h+=ds.map(d=>{const k=ymd(d),past=d<TODAY,v=S.av[e.id][k]||[];return `<div class="day ${U.focus==k?'f':''}" id=d${k}><div class=row><b>${lb(d)}</b>${clo(k)?'<span class="tag it">店休'+(cln(k)?'：'+cln(k):'')+'</span>':past?'<span class=mute>已過期</span>':`<button class=b data-a=day data-k=${k}>全選當天</button><button class=b data-a=prevday data-k=${k}>同前一天</button>`}</div><div class=hrs>${H.map(x=>`<button data-a=tog data-k=${k} data-h=${x} class="${v.includes(x)?'on':''}" ${past||clo(k)?'disabled':''}>${pad(x%24)}${x>=24?'翌':''}</button>`).join('')}</div><div class=row><span class=mute>已選 ${v.length} 個時段 · ${S.sub[e.id+k]?'已提交':'尚未提交'}</span>${past||clo(k)?'':`<button class="b p" data-a=day-submit data-k=${k}>${S.sub[e.id+k]?'更新並通知店長':'提交當天意向'}</button>${S.sub[e.id+k]?`<button class="b" data-a=day-cancel data-k=${k}>取消當天意向</button>`:''}`}</div></div>`}).join('');
  h+=`<div class=row style="margin-top:10px"><button class="b p" data-a=sub>🚀 確認並提交本週意向</button></div></section>`;
  return h}
 const clo=k=>S.closed.wd.includes(pd(k).getDay())||k in S.closed.dates;const cln=k=>S.closed.dates[k]||'';
@@ -169,7 +171,7 @@ function cell(e,d){const k=ymd(d),o=S.off[e.id][k];let h='';if(clo(k))return `<t
  else if(S.av[e.id][k]?.length)h=rng(S.av[e.id][k]).map(r=>`<div class="chip it">${fh(r[0])}-${fh(r[1])} 意向</div>`).join('');
  else h='<span class=mute>休</span>';
  return `<td data-a=cell data-e=${e.id} data-d=${k} class="${k==TK?'td':''}">${h}${S.obj[e.id+k]?'<div class="chip rd">有異議</div>':''}</td>`}
-function rMgr(){
+function managerNotifications(){const rows=S.notifs||[];return `<section><h2>員工意向通知</h2>${rows.length?rows.map(n=>{const e=emp(n.emp_id);return `<div class="day"><b>${e?.n||'員工'} · ${n.work_date}</b><span class="tag ${n.action=='cancelled'?'rd':'it'}">${n.action=='submitted'?'新提交':n.action=='updated'?'修改意向':'取消意向'}</span><div class=mute>${(n.details?.hours||n.details?.previous_hours||[]).map(x=>pad(x%24)+':00').join('、')||'當日意向更新'}</div></div>`}).join(''):'<div class=mute>目前沒有意向通知</div>'}</section>`}\nfunction rMgr(){
  const ds=week(),pend=[];EMP.forEach(e=>Object.entries(S.off[e.id]).forEach(([k,a])=>a.forEach(x=>{if(x.st=='pend')pend.push([e,k,x])})));
  const ob=Object.keys(S.obj).filter(k=>S.obj[k]).length;
  let h='';
@@ -200,10 +202,14 @@ function act(a,d){
  if(a=='role'){if(!CFG?.mgr)return;U.role=d.v;if(d.v=='e'&&CFG.me)U.emp=CFG.me;}
  else if(a=='wk'){const t=mon(TODAY);U.wk=d.v=='0'?t:d.v=='n'?addD(t,7):addD(U.wk,7*+d.v)}
  else if(a=='ev')U.ev=d.v;
+ else if(a=='em')U.mm=d.v=='0'?new Date(TODAY.getFullYear(),TODAY.getMonth(),1):new Date(U.mm.getFullYear(),U.mm.getMonth()+ +d.v,1);
  else if(a=='tog'){const v=S.av[U.emp][d.k]||(S.av[U.emp][d.k]=[]),h=+d.h,i=v.indexOf(h);i<0?v.push(h):v.splice(i,1)}
  else if(a=='day')S.av[U.emp][d.k]=[...H];
  else if(a=='prevday')S.av[U.emp][d.k]=[...(S.av[U.emp][ymd(addD(pd(d.k),-1))]||[])];
  else if(a=='all')week().forEach(x=>{if(x>=TODAY&&!clo(ymd(x)))S.av[U.emp][ymd(x)]=[...H]});
+ else if(a=='qall'||a=='qmor'||a=='qnoon'||a=='qeve'){const set=a=='qall'?H:a=='qmor'?H.filter(x=>x>=7&&x<12):a=='qnoon'?H.filter(x=>x>=12&&x<17):H.filter(x=>x>=17);week().forEach(x=>{const k=ymd(x);if(x>=TODAY&&!clo(k))S.av[U.emp][k]=[...new Set([...(S.av[U.emp][k]||[]),...set])]})}
+ else if(a=='day-submit'){submitDay(d.k);return}
+ else if(a=='day-cancel'){cancelDay(d.k);return}
  else if(a=='cpw')week().forEach(x=>{if(x>=TODAY&&!clo(ymd(x)))S.av[U.emp][ymd(x)]=[...(S.av[U.emp][ymd(addD(x,-7))]||[])]});
  else if(a=='clr')week().forEach(x=>{if(x>=TODAY)S.av[U.emp][ymd(x)]=[]});
  else if(a=='sub'){S.sub[U.emp+ymd(U.wk)]=1;toast('已提交，正在同步到資料庫…')}
