@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f3f6fb">
+<title>ShiftSync｜員工入口 v5</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;color:#172536;background:#f3f6fb;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}button:focus-visible{outline:3px solid #8bb7ff;outline-offset:2px}
+header{background:#15375b;color:#fff;padding:16px max(16px,calc((100vw - 900px)/2));display:flex;align-items:center;gap:12px;justify-content:space-between}
+.brand{font-weight:800;font-size:19px}.sub{font-size:12px;opacity:.75}.wrap{max-width:900px;margin:auto;padding:16px 14px 96px}
+.tabs{display:flex;gap:8px;overflow:auto;margin:0 0 14px}.tab{white-space:nowrap;border:1px solid #d5dfeb;background:#fff;color:#42556b;border-radius:12px;padding:10px 14px}.tab.active{background:#1d65b8;border-color:#1d65b8;color:#fff}
+.panel{background:#fff;border:1px solid #dce4ee;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 3px 14px #183b5c0a}
+h1{font-size:21px;margin:0 0 4px}h2{font-size:17px;margin:0 0 12px}.muted{color:#738297;font-size:13px}.monthbar,.row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid #d3deeb;background:#fff;color:#29415c;border-radius:10px;padding:9px 12px}.btn.primary{background:#1d65b8;color:#fff;border-color:#1d65b8}.btn.danger{color:#b63838;border-color:#f0caca;background:#fff8f8}.btn.small{padding:6px 9px;font-size:13px}
+.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:12px}.weekday{text-align:center;color:#7a899b;font-size:12px;padding:5px 0}.date{border:1px solid #e3eaf2;background:#fff;border-radius:10px;min-height:78px;padding:6px 5px;text-align:left;display:flex;flex-direction:column;gap:4px;min-width:0}.date.empty{border:0;background:transparent;pointer-events:none}.date.selected{border:2px solid #1d65b8;background:#f1f7ff;padding:5px 4px}.date.today .num{color:#1d65b8;font-weight:800}.num{font-size:13px}.shift-chip{background:#e3f4eb;color:#147348;border-radius:5px;padding:2px 4px;font-size:10px;line-height:1.3;overflow-wrap:anywhere}.off-chip{font-size:10px;color:#98a4b3}.dot{width:7px;height:7px;border-radius:50%;background:#179b65;display:inline-block;margin-right:3px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#738297}.detail{background:#f7f9fc;border-radius:13px;padding:13px;margin-top:14px}.detail strong{font-size:20px;color:#147348}.hours{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:12px 0}.hour{border:1px solid #dce4ee;border-radius:9px;background:#fff;padding:9px 3px;font-size:12px;color:#53657a}.hour.on{background:#1d65b8;color:#fff;border-color:#1d65b8}.quick{display:flex;gap:7px;flex-wrap:wrap}.status{font-size:12px;border-radius:999px;padding:4px 9px;background:#eef2f7;color:#53657a}.status.sent{background:#e1f4e9;color:#167449}.status.cancelled{background:#fff0e4;color:#9b5a1b}.status.reply{background:#e8f1ff;color:#1d65b8}
+.card{border:1px solid #e1e8f0;border-radius:13px;padding:13px;margin:9px 0}.card-title{font-weight:700}.notice{background:#fff8e8;border:1px solid #f2dfac;color:#76561b;padding:10px 12px;border-radius:11px;font-size:13px;margin:10px 0}
+.punchbox{text-align:center;padding:18px}.punchbtn{width:150px;height:150px;border-radius:50%;border:8px solid #d7e9fa;background:#1d65b8;color:#fff;font-size:22px;font-weight:800;box-shadow:0 8px 22px #1d65b833}.punchbtn.out{background:#12845a;border-color:#d5f0e2}.clock{font-size:28px;font-weight:800;letter-spacing:1px}.emptymsg{text-align:center;padding:24px 10px;color:#8795a6}
+@media(max-width:540px){.wrap{padding:12px 10px 90px}.panel{padding:13px}.date{min-height:68px;padding:5px 3px}.date.selected{padding:4px 2px}.shift-chip{font-size:9px}.hours{grid-template-columns:repeat(3,minmax(0,1fr))}.brand{font-size:17px}}
+</style>
+</head>
+<body>
+<header><div><div class="brand">ShiftSync</div><div class="sub">員工入口 · LINE LIFF 版面預覽</div></div><span class="status reply">台灣時間 Asia/Taipei</span></header>
+<main class="wrap">
+<div class="tabs" role="tablist">
+<button class="tab active" data-tab="schedule">我的班表</button><button class="tab" data-tab="availability">排班意向</button><button class="tab" data-tab="replies">店長回覆 <span id="unread"></span></button><button class="tab" data-tab="punch">上下班打卡</button>
+</div>
+<section id="schedule" class="panel">
+<div class="monthbar"><div><h1>我的班表</h1><div class="muted">點選日期查看當天班次</div></div><div class="row"><button class="btn small" id="prevMonth">‹</button><b id="monthLabel"></b><button class="btn small" id="nextMonth">›</button></div></div>
+<div class="calendar" id="calendar"></div>
+<div class="legend"><span><i class="dot"></i>已正式排班</span><span>灰色：休息／未排班</span></div>
+<div class="detail" id="shiftDetail"></div>
+</section>
+<section id="availability" class="panel" hidden>
+<h1>排班意向</h1><p class="muted">先選日期，再選擇當天可以上班的時段。每一天獨立提交、修改或取消。</p>
+<div class="row"><label for="intentDate"><b>選擇日期</b></label><input type="date" id="intentDate"></div>
+<div class="row" style="margin-top:12px"><div class="quick"><button class="btn small" data-quick="all">全選</button><button class="btn small" data-quick="morning">上午全選</button><button class="btn small" data-quick="noon">中午全選</button><button class="btn small" data-quick="evening">晚上全選</button><button class="btn small" data-quick="clear">清空</button></div><span class="status" id="intentStatus">尚未提交</span></div>
+<div class="hours" id="hours"></div>
+<div class="row"><span class="muted" id="selectedCount">已選 0 個時段</span><button class="btn primary" id="submitIntent">提交當天意向</button></div>
+<div class="notice">晚上時段包含 00:00–02:00，會標示為隔日凌晨，但仍歸屬你選擇的排班日期。</div>
+<div id="intentActions" class="row" hidden><button class="btn" id="editIntent">修改當天意向</button><button class="btn danger" id="cancelIntent">取消當天意向</button></div>
+</section>
+<section id="replies" class="panel" hidden><h1>店長回覆</h1><p class="muted">店長提出建議後，請在這裡接受或拒絕。</p><div id="replyList"></div></section>
+<section id="punch" class="panel" hidden><h1>上下班打卡</h1><p class="muted">打卡時間以台灣時間顯示。正式版將寫入 Supabase 打卡記錄。</p><div class="punchbox"><div class="clock" id="clock"></div><div class="muted" id="todayLabel"></div><div style="margin:22px"><button class="punchbtn" id="punchButton">上班<br>打卡</button></div><div id="punchState" class="muted">尚未上班打卡</div></div></section>
+<p class="muted" style="text-align:center">v5 互動開發預覽 · 目前使用示範資料，不會寫入正式 Supabase 或發送真實 LINE 通知。</p>
+</main>
+<script>
+const $=s=>document.querySelector(s), pad=n=>String(n).padStart(2,'0');
+const dateKey=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parseDate=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const plus=(d,n)=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);
+const today=new Date();today.setHours(0,0,0,0);
+let month=new Date(today.getFullYear(),today.getMonth(),1), selected=dateKey(today), activeTab='schedule';
+const shifts={
+ [dateKey(plus(today,1))]:[{start:9,end:18}],
+ [dateKey(plus(today,3))]:[{start:17,end:26}],
+ [dateKey(plus(today,5))]:[{start:10,end:19}],
+ [dateKey(plus(today,8))]:[{start:9,end:18}],
+ [dateKey(plus(today,10))]:[{start:17,end:26}],
+ [dateKey(plus(today,13))]:[{start:11,end:20}],
+ [dateKey(plus(today,16))]:[{start:9,end:18}],
+ [dateKey(plus(today,19))]:[{start:17,end:26}]
+};
+const intents={};
+const replies=[{id:1,date:dateKey(plus(today,2)),ranges:[{start:17,end:26}],read:false,status:'待你確認',note:'店長建議你這天支援晚班。'},{id:2,date:dateKey(plus(today,6)),ranges:[{start:10,end:19}],read:true,status:'待你確認',note:'店長建議你這天支援中班。'}];
+let punchIn=null,punchOut=null;
+const fmt=h=>{const v=((h%24)+24)%24;return pad(Math.floor(v))+':'+pad((v%1)*60)};
+const rangeLabel=r=>fmt(r.start)+'–'+(r.end>=24?'隔日 '+fmt(r.end):fmt(r.end));
+function showTab(tab){activeTab=tab;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));['schedule','availability','replies','punch'].forEach(id=>$('#'+id).hidden=id!==tab);if(tab==='replies'){replies.forEach(r=>r.read=true);renderReplies()}updateUnread()}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+function renderCalendar(){
+ const y=month.getFullYear(),m=month.getMonth(),first=(new Date(y,m,1).getDay()),days=new Date(y,m+1,0).getDate();
+ $('#monthLabel').textContent=y+'年'+(m+1)+'月';
+ let html=['日','一','二','三','四','五','六'].map(x=>'<div class="weekday">週'+x+'</div>').join('');
+ for(let i=0;i<first;i++)html+='<div class="date empty"></div>';
+ for(let d=1;d<=days;d++){const dt=new Date(y,m,d),k=dateKey(dt),ss=shifts[k]||[],sel=k===selected;html+='<button class="date '+(sel?'selected ':'')+(k===dateKey(today)?'today':'')+'" data-date="'+k+'"><span class="num">'+d+'</span>'+(ss.length?ss.map(s=>'<span class="shift-chip">'+rangeLabel(s)+'</span>').join(''):'<span class="off-chip">休息</span>')+'</button>'}
+ $('#calendar').innerHTML=html;
+ document.querySelectorAll('[data-date]').forEach(b=>b.addEventListener('click',()=>{selected=b.dataset.date;renderCalendar();renderShiftDetail()}));
+ renderShiftDetail();
+}
+function renderShiftDetail(){const ss=shifts[selected]||[];$('#shiftDetail').innerHTML='<b>'+selected+' · '+['週日','週一','週二','週三','週四','週五','週六'][parseDate(selected).getDay()]+'</b>'+(ss.length?ss.map(s=>'<div style="margin-top:8px"><strong>'+rangeLabel(s)+'</strong><div class="muted">正式班表</div></div>').join(''):'<div class="emptymsg">這一天沒有正式班次<br>休息／尚未排班</div>')}
+$('#prevMonth').onclick=()=>{month=new Date(month.getFullYear(),month.getMonth()-1,1);renderCalendar()};
+$('#nextMonth').onclick=()=>{month=new Date(month.getFullYear(),month.getMonth()+1,1);renderCalendar()};
+function slots(){let a=[];for(let h=7;h<26;h++)a.push({start:h,end:h+1});return a}
+function currentIntent(){return intents[$('#intentDate').value]||{selected:[],status:'draft'}}
+function renderIntent(){const k=$('#intentDate').value,rec=currentIntent(),saved=rec.status==='submitted';$('#intentStatus').textContent=rec.status==='submitted'?'已提交':rec.status==='cancelled'?'已取消':'尚未提交';$('#intentStatus').className='status '+(saved?'sent':rec.status==='cancelled'?'cancelled':'');$('#hours').innerHTML=slots().map(s=>{const chosen=rec.selected.includes(s.start);const label=s.start>=24?'隔日 '+fmt(s.start):fmt(s.start);return '<button class="hour '+(chosen?'on':'')+'" data-hour="'+s.start+'">'+label+'<br>至 '+(s.end>=24?'隔日 '+fmt(s.end):fmt(s.end))+'</button>'}).join('');document.querySelectorAll('[data-hour]').forEach(b=>b.onclick=()=>{const r=currentIntent(),n=+b.dataset.hour;r.selected=r.selected.includes(n)?r.selected.filter(x=>x!==n):[...r.selected,n].sort((a,b)=>a-b);r.status='draft';intents[k]=r;renderIntent()});$('#selectedCount').textContent='已選 '+rec.selected.length+' 個時段';$('#submitIntent').textContent=saved?'重新提交修改':'提交當天意向';$('#intentActions').hidden=!saved}
+$('#intentDate').value=dateKey(today);$('#intentDate').addEventListener('change',renderIntent);
+document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>{const k=$('#intentDate').value,r=currentIntent(),q=b.dataset.quick;r.selected=q==='all'?slots().map(x=>x.start):q==='morning'?slots().filter(x=>x.start>=7&&x.start<12).map(x=>x.start):q==='noon'?slots().filter(x=>x.start>=12&&x.start<17).map(x=>x.start):q==='evening'?slots().filter(x=>x.start>=17).map(x=>x.start):[];r.status='draft';intents[k]=r;renderIntent()});
+$('#submitIntent').onclick=()=>{const k=$('#intentDate').value,r=currentIntent();if(!r.selected.length){alert('請至少選擇一個時段');return}r.status='submitted';r.updatedAt=new Date();intents[k]=r;renderIntent();alert('意向已提交（預覽模式：正式版會同步資料並通知店長）')};
+$('#editIntent').onclick=()=>{const r=currentIntent();r.status='draft';renderIntent()};
+$('#cancelIntent').onclick=()=>{if(!confirm('確定取消這一天已提交的排班意向？店長會收到通知。'))return;const k=$('#intentDate').value,r=currentIntent();r.status='cancelled';r.selected=[];intents[k]=r;renderIntent();alert('當天意向已取消（預覽模式：正式版會通知店長）')};
+function renderReplies(){$('#replyList').innerHTML=replies.map(r=>'<div class="card"><div class="row"><span class="card-title">'+r.date+'</span><span class="status reply">'+r.status+'</span></div><div style="font-size:19px;font-weight:800;color:#1d65b8">'+r.ranges.map(rangeLabel).join('、')+'</div><p class="muted">'+r.note+'</p>'+(r.status==='待你確認'?'<div class="row"><button class="btn primary" data-accept="'+r.id+'">接受建議</button><button class="btn" data-decline="'+r.id+'">拒絕建議</button></div>':'')+'</div>').join('')||'<div class="emptymsg">目前沒有店長回覆</div>';document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=()=>{const r=replies.find(x=>x.id==b.dataset.accept);r.status='員工已接受';renderReplies();alert('已記錄接受（仍需店長正式發布班表）')});document.querySelectorAll('[data-decline]').forEach(b=>b.onclick=()=>{const r=replies.find(x=>x.id==b.dataset.decline);r.status='員工已拒絕';renderReplies();alert('已記錄拒絕，正式版會通知店長')});updateUnread()}
+function updateUnread(){const n=replies.filter(r=>!r.read&&r.status==='待你確認').length;$('#unread').textContent=n?'('+n+')':''}
+function tick(){const now=new Date();$('#clock').textContent=now.toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});$('#todayLabel').textContent=now.toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',year:'numeric',month:'long',day:'numeric'});$('#punchButton').innerHTML=punchIn===null?'上班<br>打卡':punchOut===null?'下班<br>打卡':'今日<br>已完成';$('#punchButton').classList.toggle('out',punchIn!==null);$('#punchButton').disabled=punchOut!==null;$('#punchState').textContent=punchIn===null?'尚未上班打卡':'上班 '+punchIn+(punchOut?' · 下班 '+punchOut:'') }
+$('#punchButton').onclick=()=>{const t=new Date().toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false});if(punchIn===null)punchIn=t;else punchOut=t;tick()};
+renderCalendar();renderIntent();renderReplies();tick();setInterval(tick,1000);
+</script>
+</body>
+</html>
