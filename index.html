@@ -98,7 +98,7 @@ async function push(){if(!CFG||!sb)return;try{const mg=CFG.mgr;
   const rows=EMP.map(e=>{const id=e.id,sub={},obj={},ac={...(S.acks?.[id]||{})},r={emp_id:id};
    Object.keys(S.sub).forEach(k=>{if(k.startsWith(id)&&S.sub[k])sub[k.slice(id.length)]=1});Object.keys(S.obj).forEach(k=>{if(k.startsWith(id)&&S.obj[k])obj[k.slice(id.length)]=1});
    Object.entries(S.off[id]).forEach(([d,a])=>{if(a.some(x=>x.st=='pend'))delete ac[d]});
-   Object.assign(r,{name:e.n,title:e.r,rate:e.rate,email:e.wp||null,off:S.off[id],punches:S.at[id],obj,acks:ac});return r});
+   Object.assign(r,{name:e.n,title:e.r,rate:e.rate,email:e.wp||null,off:S.off[id],av:S.av[id]||{},sub,punches:S.at[id],obj,acks:ac});return r});
   let a=await sb.from('emp_data').upsert(rows);if(a.error)throw a.error;
   if(S.gone?.length){a=await sb.from('emp_data').delete().in('emp_id',S.gone);if(a.error)throw a.error;S.gone=[]}
   a=await sb.from('cfg').upsert({id:1,closed:S.closed});if(a.error)throw a.error;
