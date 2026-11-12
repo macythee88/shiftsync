@@ -210,7 +210,7 @@ function act(a,d){
  else if(a=='day')S.av[U.emp][d.k]=[...H];
  else if(a=='prevday')S.av[U.emp][d.k]=[...(S.av[U.emp][ymd(addD(pd(d.k),-1))]||[])];
  else if(a=='all')week().forEach(x=>{if(x>=TODAY&&!clo(ymd(x)))S.av[U.emp][ymd(x)]=[...H]});
- else if(a=='quick'){const set=d.v=='all'?H:d.v=='morning'?H.filter(x=>x>=7&&x<12):d.v=='noon'?H.filter(x=>x>=12&&x<17):H.filter(x=>x>=17);if(pd(d.k)>=TODAY&&!clo(d.k))S.av[U.emp][d.k]=[...set]}
+ else if(a=='quick'){const set=d.v=='all'?H:d.v=='morning'?H.filter(x=>x>=7&&x<12):d.v=='noon'?H.filter(x=>x>=12&&x<17):H.filter(x=>x>=17);if(pd(d.k)>=TODAY&&!clo(d.k)){if(d.v=='all')S.av[U.emp][d.k]=[...H];else{const cur=S.av[U.emp][d.k]||[],allOn=set.every(x=>cur.includes(x));S.av[U.emp][d.k]=allOn?cur.filter(x=>!set.includes(x)):[...new Set([...cur,...set])].sort((a,b)=>a-b)}}}
  else if(a=='day-submit'){submitDay(d.k);return}
  else if(a=='day-cancel'){cancelDay(d.k);return}
  else if(a=='cpw')week().forEach(x=>{if(x>=TODAY&&!clo(ymd(x)))S.av[U.emp][ymd(x)]=[...(S.av[U.emp][ymd(addD(x,-7))]||[])]});
