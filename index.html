@@ -172,7 +172,8 @@ function cell(e,d){const k=ymd(d),o=S.off[e.id][k];let h='';if(clo(k))return `<t
  else if(S.av[e.id][k]?.length)h=rng(S.av[e.id][k]).map(r=>`<div class="chip it">${fh(r[0])}-${fh(r[1])} 意向</div>`).join('');
  else h='<span class=mute>休</span>';
  return `<td data-a=cell data-e=${e.id} data-d=${k} class="${k==TK?'td':''}">${h}${S.obj[e.id+k]?'<div class="chip rd">有異議</div>':''}</td>`}
-async function markNotificationRead(id){const r=await sb.from('manager_notifications').update({read_at:new Date().toISOString()}).eq('id',id).is('read_at',null);if(r.error){toast('標記已讀失敗：'+r.error.message);return}S.notifs=(S.notifs||[]).map(n=>n.id===id?{...n,read_at:new Date().toISOString()}:n);render()}\nfunction managerNotifications(){const rows=(S.notifs||[]).filter(n=>!n.read_at);return `<section><h2>員工意向通知（未讀 ${rows.length}）</h2>${rows.length?rows.map(n=>{const e=emp(n.emp_id);return `<div class="day"><b>${e?.n||'員工'} · ${n.work_date}</b><span class="tag ${n.action=='cancelled'?'rd':'it'}">${n.action=='submitted'?'新提交':n.action=='updated'?'修改意向':'取消意向'}</span><div class=mute>${(n.details?.hours||n.details?.previous_hours||[]).map(x=>pad(x%24)+':00').join('、')||'當日意向更新'}</div><button class="b" data-a="notice-read" data-id="${n.id}">看完，標記已讀</button></div>`}).join(''):'<div class=mute>目前沒有未讀意向通知</div>'}</section>`}
+async function markNotificationRead(id){const r=await sb.from('manager_notifications').update({read_at:new Date().toISOString()}).eq('id',id).is('read_at',null);if(r.error){toast('標記已讀失敗：'+r.error.message);return}S.notifs=(S.notifs||[]).map(n=>n.id===id?{...n,read_at:new Date().toISOString()}:n);render()}
+function managerNotifications(){const rows=(S.notifs||[]).filter(n=>!n.read_at);return `<section><h2>員工意向通知（未讀 ${rows.length}）</h2>${rows.length?rows.map(n=>{const e=emp(n.emp_id);return `<div class="day"><b>${e?.n||'員工'} · ${n.work_date}</b><span class="tag ${n.action=='cancelled'?'rd':'it'}">${n.action=='submitted'?'新提交':n.action=='updated'?'修改意向':'取消意向'}</span><div class=mute>${(n.details?.hours||n.details?.previous_hours||[]).map(x=>pad(x%24)+':00').join('、')||'當日意向更新'}</div><button class="b" data-a="notice-read" data-id="${n.id}">看完，標記已讀</button></div>`}).join(''):'<div class=mute>目前沒有未讀意向通知</div>'}</section>`}
 function rMgr(){
  const ds=week(),pend=[];EMP.forEach(e=>Object.entries(S.off[e.id]).forEach(([k,a])=>a.forEach(x=>{if(x.st=='pend')pend.push([e,k,x])})));
  const ob=Object.keys(S.obj).filter(k=>S.obj[k]).length;
@@ -221,7 +222,8 @@ function act(a,d){
  else if(a=='rep'){U.wk=mon(pd(d.k));U.focus=d.k;hideM()}
  else if(a=='close'){hideM();return}
  else if(a=='adopt'){const targets=[];EMP.forEach(e=>week().forEach(x=>{const k=ymd(x),av=S.av[e.id][k]||[],next=rng(av).map(r=>({s:r[0],e:r[1],st:'ok'})),cur=S.off[e.id][k]||[];if(x>=TODAY&&!clo(k)&&av.length&&JSON.stringify(cur.map(v=>[v.s,v.e]).sort())!==JSON.stringify(next.map(v=>[v.s,v.e]).sort()))targets.push({e,k,next,had:cur.length>0})}));if(!targets.length){toast('本週沒有需要採納或更新的最新意向');return}const updates=targets.filter(t=>t.had).length;if(!confirm(`確認一鍵採納 ${targets.length} 筆最新意向？其中 ${updates} 筆會更新已有正式班次。此操作會直接更新正式班表。`))return;targets.forEach(t=>{S.off[t.e.id][t.k]=t.next;delete S.obj[t.e.id+t.k]});save();toast(`已確認並採納 ${targets.length} 筆意向（含更新 ${updates} 筆原班次）`)}
- else if(a=='notice-read'){markNotificationRead(+d.id);return}\n  else if(a=='cell'){drawer(d.e,d.d);return}
+ else if(a=='notice-read'){markNotificationRead(+d.id);return}
+  else if(a=='cell'){drawer(d.e,d.d);return}
  else if(a=='chk'){chk();return}
  else if(a=='save'){const r=chk();if(!r)return;const g=$('#dg'),id=g.dataset.id,k=g.dataset.k,av=S.av[id][k]||[],ch=r.some(x=>!cov(av,x.s,x.e));S.off[id][k]=r.map(x=>({...x,st:ch?'pend':'ok'}));delete S.obj[id+k];hideM();toast(ch?'與員工申報不符，已推送給員工確認':'已儲存並生效')}
  else if(a=='del'){const g=$('#dg');S.off[g.dataset.id][g.dataset.k]=[];hideM();toast('已清空班次')}
