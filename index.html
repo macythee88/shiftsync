@@ -176,7 +176,7 @@ function managerNotifications(){const rows=S.notifs||[];return `<section><h2>員
 function rMgr(){
  const ds=week(),pend=[];EMP.forEach(e=>Object.entries(S.off[e.id]).forEach(([k,a])=>a.forEach(x=>{if(x.st=='pend')pend.push([e,k,x])})));
  const ob=Object.keys(S.obj).filter(k=>S.obj[k]).length;
- let h='';
+ let h=managerNotifications();
  if(ob)h+=`<div class=card><b>🔴 有 ${ob} 條員工異議待溝通</b>，見下方“確認狀態追蹤”。</div>`;
  h+=`<section><h2>周排程大盤</h2>${wkNav()}<div class=row><button class="b p" data-a=adopt>✨ 一鍵採納本週所有員工意向</button><span class=mute><span class="chip it">意向</span> <span class="chip ok">正式</span> <span class=gp>紅色=缺口</span>，點選任意格子調班</span></div><div class=sc><table><tr><th>員工${ds.map(d=>`<th class="${ymd(d)==TK?'td':''}">${lb(d)}${ymd(d)==TK?' 🎯':''}${clo(ymd(d))?' 🔒店休':''}`).join('')}</tr>`;
  EMP.forEach(e=>h+=`<tr><th>${e.n}<div class=mute>${e.r}</div>${ds.map(d=>cell(e,d)).join('')}</tr>`);
