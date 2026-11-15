@@ -67,11 +67,14 @@ button:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-
 <button class="b" data-a="out" hidden>登出</button></header>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <main id="app"></main>
 <div id="lg" class="mask" hidden style="align-items:center"><div class="sheet" style="border-radius:14px;max-width:380px"><h2>ShiftSync 員工排班</h2><div class="row"><input id="le" type="email" placeholder="Email" style="width:100%"></div><div class="row"><input id="lp" type="password" placeholder="密碼" style="width:100%"></div><div id="lm" class="gp"></div><div class="row"><button class="b p" data-a="login" style="width:100%">登入</button></div></div></div>
 <div class="mask" id="m" hidden><div class="sheet" id="sh"></div></div>
 <div id="t" hidden></div>
 <script>
+const LIFF_ID='2012621467-laUGXJmr';
+window.__SS_LIFF_READY=(async()=>{try{if(!window.liff)return false;await liff.init({liffId:LIFF_ID,withLoginOnExternalBrowser:true});return true}catch(e){console.warn('LIFF initialization unavailable; web login remains available',e);return false}})();
 const $=s=>document.querySelector(s),pad=n=>String(n).padStart(2,'0');
 const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const pd=s=>{const[a,b,c]=s.split('-');return new Date(+a,+b-1,+c)};
@@ -126,12 +129,13 @@ async function load(){try{
   Object.keys(x.obj||{}).forEach(k=>S.obj[id+k]=1);Object.keys(x.sub||{}).forEach(k=>S.sub[id+k]=1)});
  fix();CFG.me=S.emps.find(e=>e.wp==CFG.login)?.id;if(CFG.mgr){const nr=await sb.from('manager_notifications').select('*').order('created_at',{ascending:false}).limit(50);if(!nr.error)S.notifs=nr.data||[]}if(!CFG.mgr&&!CFG.me){$('#app').innerHTML='<section><h2>帳號尚未綁定員工資料</h2><p>目前登入帳號沒有對應的員工資料列。請聯絡店長確認員工 Email 與登入帳號一致；系統不會顯示其他員工資料。</p></section>';return}boot();render()}catch(e){toast('載入失敗：'+(e.message||''))}}
 let poll;
-async function enter(se){const claim=await sb.rpc('claim_me');if(claim.error){showLogin('帳號綁定檢查失敗：'+claim.error.message);return}const m=await sb.rpc('is_mgr');if(m.error){showLogin('權限檢查失敗：'+m.error.message);return}CFG={mgr:!!m.data,login:se.user.email.toLowerCase()};$('#lg').hidden=true;$('[data-a=out]').hidden=false;blank();boot();render();await load();
+async function enter(se){const claim=await sb.rpc('claim_me');if(claim.error){showLogin('帳號綁定檢查失敗：'+claim.error.message);return}const m=await sb.rpc('is_mgr');if(m.error){showLogin('權限檢查失敗：'+m.error.message);return}CFG={mgr:!!m.data,login:se.user.email.toLowerCase()};await bindLineAccount();$('#lg').hidden=true;$('[data-a=out]').hidden=false;blank();boot();render();await load();
  if(!poll)poll=setInterval(()=>{if(CFG&&!dirty&&$('#m').hidden&&document.activeElement.tagName!='INPUT'&&!document.querySelector('#disc.hold'))load()},30000)}
 async function staff(action,body){const r=await sb.functions.invoke('manage-staff',{body:{action,...body}});
  const m=r.error?(await r.error.context?.json?.().then(j=>j.error).catch(()=>null))||r.error.message:null;if(m){toast('失敗：'+m);return}
  toast(action=='add'?'已新增員工並建立登入帳號':action=='remove'?'已刪除員工與帳號':'已重設密碼');await load()}
 async function sendLineNotice(event,extra={}){try{const r=await sb.functions.invoke('line-notify',{body:{event,...extra}});if(r.error)console.warn('LINE notification unavailable; in-app notice remains active',r.error);return !r.error}catch(e){console.warn('LINE notification unavailable; in-app notice remains active',e);return false}}
+async function bindLineAccount(){try{if(!window.liff||!await window.__SS_LIFF_READY||!liff.isLoggedIn())return;const id_token=liff.getIDToken();if(!id_token)return;const r=await sb.functions.invoke('line-link',{body:{id_token}});if(r.error){console.warn('LINE account linking failed',r.error);return}console.info('ShiftSync LINE account linked')}catch(e){console.warn('LINE account linking unavailable',e)}}
 function showLogin(t){$('#lg').hidden=false;$('#lm').textContent=t||''}
 async function doLogin(){const r=await sb.auth.signInWithPassword({email:$('#le').value.trim(),password:$('#lp').value});if(r.error){showLogin('登入失敗：帳號或密碼錯誤');return}enter(r.data.session)}
 
@@ -255,5 +259,5 @@ document.addEventListener('change',e=>{const s=e.target;if(s.dataset.a=='emp'){U
 $('#m').addEventListener('click',e=>{if(e.target.id=='m')hideM()});
 let ht;document.addEventListener('pointerdown',e=>{const b=e.target.closest('#disc');if(!b||b.disabled)return;b.classList.add('hold');ht=setTimeout(()=>{if(CFG){sb.rpc('punch_me').then(r=>{if(r.error)toast('打卡失敗');else{load();toast('打卡成功')}});return}const id=U.emp,a=S.at[id][TK]||(S.at[id][TK]={}),n=new Date();a[a.i==null?'i':'o']=n.getHours()+n.getMinutes()/60;save();render();toast('打卡成功')},500)});
 ['pointerup','pointerleave','pointercancel'].forEach(t=>document.addEventListener(t,e=>{if(e.target.closest&&e.target.closest('#disc')||t!='pointerleave'){clearTimeout(ht);document.querySelector('#disc')?.classList.remove('hold')}}));
-if(!sb){$('#app').innerHTML='<section><h2>系統尚未完成正式環境設定</h2><p>請管理員在部署環境設定 Supabase Project URL 與 anon public key。為保護正式員工資料，系統不再提供本機演示模式或演示資料重置。</p></section>';$('#lg').hidden=true;}else{sb.auth.getSession().then(({data})=>data.session?enter(data.session):showLogin())}
+if(!sb){$('#app').innerHTML='<section><h2>系統尚未完成正式環境設定</h2><p>請管理員在部署環境設定 Supabase Project URL 與 anon public key。為保護正式員工資料，系統不再提供本機演示模式或演示資料重置。</p></section>';$('#lg').hidden=true;}else{Promise.resolve(window.__SS_LIFF_READY).finally(()=>sb.auth.getSession().then(({data})=>data.session?enter(data.session):showLogin()))}
 </script></body></html>
