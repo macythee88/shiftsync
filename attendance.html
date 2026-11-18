@@ -89,7 +89,7 @@
  async function loadEvents(){
   const r=await sb.from('attendance_events').select('*').order('recorded_at',{ascending:false}).limit(50);
   if(r.error){$('events').innerHTML='<tr><td colspan="7">讀取失敗：'+escapeHtml(r.error.message)+'</td></tr>';return}
-  $('events').innerHTML=(r.data||[]).map(x=>{const e=employees.find(v=>v.emp_id===x.emp_id);return '<tr><td>'+escapeHtml(e?.name||x.emp_id)+'</td><td>'+escapeHtml(x.work_date)+'</td><td>'+(x.punch_type==='in'?'簽到':'簽退')+'</td><td>'+(x.success?'成功 '+(x.local_time==null?'':displayTime(x.local_time)):'失敗 '+escapeHtml(x.failure_reason||''))+'</td><td>'+escapeHtml(x.source==='manager_manual'?'店長補登':'GPS＋QR')+(x.note?'：'+escapeHtml(x.note):'')+'</td><td>'+escapeHtml(new Date(x.recorded_at).toLocaleString())+'</td></tr>'}).join('')||'<tr><td colspan="7">尚無紀錄</td></tr>';
+  $('events').innerHTML=(r.data||[]).map(x=>{const e=employees.find(v=>v.emp_id===x.emp_id);return '<tr><td>'+escapeHtml(e?.name||x.emp_id)+'</td><td>'+escapeHtml(x.work_date)+'</td><td>'+(x.punch_type==='in'?'簽到':'簽退')+'</td><td>'+(x.success?'成功 '+(x.local_time==null?'':displayTime(x.local_time)):'失敗 '+escapeHtml(x.failure_reason||''))+'</td><td>'+escapeHtml(x.source==='manager_manual'?'店長補登':'GPS＋QR')+(x.note?'：'+escapeHtml(x.note):'')+'</td><td>'+escapeHtml(x.performed_by||'—')+'</td><td>'+escapeHtml(new Date(x.recorded_at).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}))+'</td></tr>'}).join('')||'<tr><td colspan="7">尚無紀錄</td></tr>';
  }
  $('reloadEvents').onclick=loadEvents;$('logout').onclick=()=>sb.auth.signOut().then(()=>location.href='index.html');
  init();
