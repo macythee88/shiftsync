@@ -85,7 +85,7 @@ const ft=h=>pad(Math.floor(h))+':'+pad(Math.floor((h%1)*60));
 const WD=['週日','週一','週二','週三','週四','週五','週六'];
 const lb=d=>(d.getMonth()+1)+'/'+d.getDate()+' '+WD[d.getDay()];
 let EMP=[];const H=[...Array(19)].map((_,i)=>i+7),NEED=3;
-const TODAY=new Date();TODAY.setHours(0,0,0,0);const TK=ymd(TODAY);
+const TODAY=new Date();if(TODAY.getHours()<2)TODAY.setDate(TODAY.getDate()-1);TODAY.setHours(0,0,0,0);const TK=ymd(TODAY);
 let S,U={role:'e',emp:'w',wk:mon(TODAY),mm:new Date(TODAY.getFullYear(),TODAY.getMonth(),1),ev:'cal',focus:null};
 let CFG=null,st,dirty=0;const ENV=window.SS_ENV||{},sb=ENV.url&&window.supabase?supabase.createClient(ENV.url,ENV.key):null;
 const save=()=>{if(!CFG)return;dirty=1;clearTimeout(st);st=setTimeout(push,400)};
