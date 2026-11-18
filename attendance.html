@@ -18,7 +18,7 @@
  const env=window.SS_ENV||{}, sb=env.url&&window.supabase?supabase.createClient(env.url,env.key):null;
  const $=id=>document.getElementById(id), show=(id,on=true)=>$(id).classList.toggle('hidden',!on);
  const msg=(id,t,kind='')=>{const el=$(id);el.textContent=t;el.className='status '+kind};
- const taipeiDate=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return p.find(x=>x.type==='year').value+'-'+p.find(x=>x.type==='month').value+'-'+p.find(x=>x.type==='day').value};
+ const taipeiDate=()=>{const businessNow=new Date(Date.now()-2*60*60*1000);const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(businessNow);return p.find(x=>x.type==='year').value+'-'+p.find(x=>x.type==='month').value+'-'+p.find(x=>x.type==='day').value};
  const displayTime=v=>{if(v==null)return '—';const n=((Number(v)%24)+24)%24;return String(Math.floor(n)).padStart(2,'0')+':'+String(Math.round((n%1)*60)).padStart(2,'0')};
  let user=null,isManager=false,store=null,lat=null,lon=null,accuracy=null,scanner=null,employees=[];
  async function init(){
