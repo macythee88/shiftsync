@@ -301,8 +301,14 @@ begin
   if not public.is_mgr() then
     raise exception 'manager_only';
   end if;
-  if p_action not in ('in', 'out') then
+  if p_action is null or p_action not in ('in', 'out') then
     raise exception 'invalid_punch_action';
+  end if;
+  if p_work_date is null then
+    raise exception 'work_date_required';
+  end if;
+  if p_emp_id is null or length(trim(p_emp_id)) = 0 then
+    raise exception 'employee_required';
   end if;
   if p_time is null then
     raise exception 'time_required';
