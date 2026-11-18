@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>ShiftSync GPS + QR 打卡</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;color:#172033;background:#f4f6fa}*{box-sizing:border-box}body{margin:0;padding:16px}main{max-width:760px;margin:0 auto}header,section{background:white;border:1px solid #e2e7ef;border-radius:14px;padding:16px;margin:0 0 14px}header{display:flex;justify-content:space-between;align-items:center;gap:10px}h1{font-size:20px;margin:0}h2{font-size:18px;margin:0 0 12px}p{line-height:1.55}.muted{color:#64748b;font-size:13px}.btn{border:0;border-radius:9px;padding:11px 15px;background:#e8edf5;color:#172033;font:inherit;cursor:pointer}.primary{background:#2459d3;color:white}.danger{background:#b42318;color:white}button:disabled{opacity:.45;cursor:not-allowed}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}input,select{font:inherit;border:1px solid #cbd5e1;border-radius:8px;padding:10px;max-width:100%}label{display:block;font-size:13px;margin:10px 0 5px}#reader{width:100%;max-width:420px;margin:12px auto}#qr canvas,#qr img{display:block;margin:auto;max-width:100%}.status{padding:10px;border-radius:9px;background:#f1f5f9;margin-top:10px;white-space:pre-wrap}.ok{background:#e8f7ee}.err{background:#fff0ee}.hidden{display:none!important}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;vertical-align:top}#printArea{padding:16px;text-align:center}@media print{body *{visibility:hidden}#printArea,#printArea *{visibility:visible}#printArea{position:absolute;left:0;top:0;width:100%}.no-print{display:none!important}}
+</style>
+<script src="config.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head><body><main>
+<header><h1>ShiftSync 考勤打卡</h1><div class="row"><a class="btn" href="index.html">返回排班</a><button class="btn" id="logout">登出</button></div></header>
+<section id="loading">正在確認登入狀態…</section>
+<section id="employee" class="hidden"><h2>員工打卡</h2><p>請在門店內完成定位，再掃描店內張貼的固定 QR Code。</p><div class="row"><button class="btn primary" id="gps">1. 取得目前 GPS 定位</button><span id="gpsInfo" class="muted">尚未取得定位</span></div><div id="reader"></div><div class="row"><button class="btn primary" id="scan" disabled>2. 開啟相機掃描 QR Code</button><button class="btn" id="stopScan" disabled>停止掃描</button></div><div id="empStatus" class="status">請先取得定位。</div></section>
+<section id="manager" class="hidden"><h2>店長考勤管理</h2><p class="muted">固定 QR Code 只會在產生時回傳一次。請列印並張貼在店內；遺失時重新產生，舊 QR 會立即失效。</p><div class="row"><button class="btn primary" id="issueQr">產生／重設店內固定 QR Code</button></div><div id="printArea" class="hidden"><h2>ShiftSync 門店打卡 QR Code</h2><div id="qr"></div><p>請於門店內掃描，並開啟 GPS 定位</p><p class="muted">此 QR Code 請勿張貼於店外</p><button class="btn primary no-print" onclick="window.print()">列印 QR Code</button></div><div id="managerStatus" class="status">尚未產生 QR Code。</div></section>
+<section id="adjust" class="hidden"><h2>店長補登／更正打卡</h2><p class="muted">每次補登或更正都必須填寫原因；系統會保存原時間、新時間、操作人及時間。</p><label>員工</label><select id="emp"></select><label>班次日期（台北時間）</label><input id="workDate" type="date"><label>打卡類型</label><select id="action"><option value="in">上班簽到</option><option value="out">下班簽退</option></select><label>正確時間</label><input id="punchTime" type="time"><label>補登／更正原因（至少 5 個字）</label><input id="reason" type="text" maxlength="300" style="width:100%" placeholder="例如：員工忘記打卡，店長核對現場紀錄"><div class="row" style="margin-top:12px"><button class="btn primary" id="saveAdjust">儲存補登</button><button class="btn" id="reloadEvents">重新整理紀錄</button></div><div id="adjustStatus" class="status">請核對日期、時間及原因後再儲存。</div></section>
+<section id="eventsSection" class="hidden"><h2>最近考勤紀錄</h2><div style="overflow:auto"><table><thead><tr><th>員工</th><th>班次日期</th><th>類型</th><th>結果／時間</th><th>來源／原因</th><th>操作時間</th></tr></thead><tbody id="events"></tbody></table></div></section>
+</main>
+<script>
+(()=> {
+ const env=window.SS_ENV||{}, sb=env.url&&window.supabase?supabase.createClient(env.url,env.key):null;
+ const $=id=>document.getElementById(id), show=(id,on=true)=>$(id).classList.toggle('hidden',!on);
+ const msg=(id,t,kind='')=>{const el=$(id);el.textContent=t;el.className='status '+kind};
+ const taipeiDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ let user=null,isManager=false,store=null,lat=null,lon=null,accuracy=null,scanner=null,employees=[];
+ async function init(){
+  if(!sb){$('loading').textContent='Supabase 設定未完成。';return}
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){$('loading').textContent='請先登入 ShiftSync。';return}
+  user=session.user;
+  const m=await sb.rpc('is_mgr'); if(m.error){$('loading').textContent='無法確認店長權限：'+m.error.message;return}
+  isManager=!!m.data;
+  const s=await sb.from('stores').select('id,name,radius_m,timezone').eq('slug','main-store').maybeSingle();
+  if(s.error||!s.data){$('loading').textContent='門店設定尚未啟用。請先完成 Supabase migration。';return}
+  store=s.data;$('loading').textContent='';
+  if(isManager){show('manager');show('adjust');show('eventsSection');await loadEmployees();await loadEvents()}
+  else show('employee');
+  $('workDate').value=taipeiDate();
+ }
+ async function loadEmployees(){
+  const r=await sb.from('emp_data').select('emp_id,name').order('name');
+  if(r.error){msg('adjustStatus','讀取員工名單失敗：'+r.error.message,'err');return}
+  employees=r.data||[];$('emp').innerHTML=employees.map(e=>'<option value="'+e.emp_id.replaceAll('"','&quot;')+'">'+escapeHtml(e.name)+'（'+escapeHtml(e.emp_id)+'）</option>').join('');
+ }
+ const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ $('gps').onclick=()=>{
+  if(!navigator.geolocation){msg('empStatus','此瀏覽器不支援 GPS 定位。','err');return}
+  msg('empStatus','正在取得高精度定位…');
+  navigator.geolocation.getCurrentPosition(pos=>{
+   lat=pos.coords.latitude;lon=pos.coords.longitude;accuracy=pos.coords.accuracy;
+   $('gpsInfo').textContent='定位精度 ±'+Math.round(accuracy)+' 米';
+   if(accuracy>20){lat=lon=accuracy=null;$('scan').disabled=true;msg('empStatus','定位精度不足（需 20 米以內）。請移至戶外或靠近窗邊重新定位。','err');return}
+   $('scan').disabled=false;msg('empStatus','GPS 已取得。下一步請掃描店內固定 QR Code。','ok');
+  },err=>msg('empStatus','無法取得定位：'+err.message+'。請允許此網站使用定位並確認 GPS 已開啟。','err'),{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+ };
+ $('scan').onclick=async()=>{
+  if(!lat||!lon){msg('empStatus','請先取得 GPS 定位。','err');return}
+  if(!window.Html5Qrcode){msg('empStatus','掃碼模組載入失敗，請重新整理頁面。','err');return}
+  try{
+   scanner=new Html5Qrcode('reader');$('scan').disabled=true;$('stopScan').disabled=false;
+   await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:240,height:240}},async decoded=>{
+    $('stopScan').click();await submitPunch(decoded);
+   },()=>{});
+  }catch(e){$('scan').disabled=false;$('stopScan').disabled=true;msg('empStatus','無法開啟相機：'+e+'。請在 HTTPS 網站或 LINE LIFF 中允許相機權限。','err')}
+ };
+ $('stopScan').onclick=async()=>{if(scanner){try{if(scanner.isScanning)await scanner.stop();await scanner.clear()}catch(e){}scanner=null}$('scan').disabled=!lat;$('stopScan').disabled=true};
+ async function submitPunch(token){
+  msg('empStatus','正在由伺服器驗證 QR Code 與門店距離…');
+  const r=await sb.rpc('record_attendance_with_qr',{p_qr_token:token,p_latitude:lat,p_longitude:lon,p_accuracy_m:accuracy});
+  if(r.error){msg('empStatus','打卡失敗：'+r.error.message,'err');return}
+  const d=r.data||{};
+  if(!d.ok){const reasons={invalid_qr:'QR Code 無效或已被重設。',invalid_location:'定位資料無效。',gps_accuracy_too_low:'GPS 精度不足，請重新定位。',outside_store_radius:'目前位置超出門店 15 米範圍。',already_checked_out:'今天已完成上下班打卡。'};msg('empStatus','打卡未成功：'+(reasons[d.reason]||d.reason)+' 請確認後重試。','err');return}
+  msg('empStatus',(d.action==='in'?'上班簽到':'下班簽退')+'成功！\n班次日期：'+d.work_date+'\n時間：'+Number(d.local_time).toFixed(2)+'\n距離門店：約 '+d.distance_m+' 米','ok');
+  lat=lon=accuracy=null;$('gpsInfo').textContent='尚未取得定位';$('scan').disabled=true;
+ }
+ $('issueQr').onclick=async()=>{
+  if(!confirm('重新產生會立即讓舊 QR Code 失效。確定繼續？'))return;
+  const r=await sb.rpc('issue_fixed_attendance_qr',{p_store_id:store.id});
+  if(r.error){msg('managerStatus','產生 QR Code 失敗：'+r.error.message,'err');return}
+  $('qr').innerHTML='';new QRCode($('qr'),{text:r.data,width:280,height:280,correctLevel:QRCode.CorrectLevel.H});
+  show('printArea');msg('managerStatus','QR Code 已產生。請立即列印並張貼於店內。原始 token 不會再次顯示；若遺失需重新產生。','ok');
+ };
+ $('saveAdjust').onclick=async()=>{
+  const reason=$('reason').value.trim();if(reason.length<5){msg('adjustStatus','請輸入至少 5 個字的原因。','err');return}
+  const r=await sb.rpc('manager_adjust_attendance',{p_emp_id:$('emp').value,p_work_date:$('workDate').value,p_action:$('action').value,p_time:$('punchTime').value,p_reason:reason});
+  if(r.error){msg('adjustStatus','儲存失敗：'+r.error.message,'err');return}
+  msg('adjustStatus','補登／更正已保存。原時間：'+(r.data.previous_time??'無')+'；新時間：'+r.data.new_time,'ok');
+  $('reason').value='';await loadEvents();
+ };
+ async function loadEvents(){
+  const r=await sb.from('attendance_events').select('*').order('recorded_at',{ascending:false}).limit(50);
+  if(r.error){$('events').innerHTML='<tr><td colspan="6">讀取失敗：'+escapeHtml(r.error.message)+'</td></tr>';return}
+  $('events').innerHTML=(r.data||[]).map(x=>{const e=employees.find(v=>v.emp_id===x.emp_id);return '<tr><td>'+escapeHtml(e?.name||x.emp_id)+'</td><td>'+escapeHtml(x.work_date)+'</td><td>'+(x.punch_type==='in'?'簽到':'簽退')+'</td><td>'+(x.success?'成功 '+(x.local_time??''):'失敗 '+escapeHtml(x.failure_reason||''))+'</td><td>'+escapeHtml(x.source==='manager_manual'?'店長補登':'GPS＋QR')+(x.note?'：'+escapeHtml(x.note):'')+'</td><td>'+escapeHtml(new Date(x.recorded_at).toLocaleString())+'</td></tr>'}).join('')||'<tr><td colspan="6">尚無紀錄</td></tr>';
+ }
+ $('reloadEvents').onclick=loadEvents;$('logout').onclick=()=>sb.auth.signOut().then(()=>location.href='index.html');
+ init();
+})();
+</script></body></html>
