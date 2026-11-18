@@ -80,7 +80,7 @@ const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const pd=s=>{const[a,b,c]=s.split('-');return new Date(+a,+b-1,+c)};
 const addD=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 const mon=d=>addD(d,-((d.getDay()+6)%7));
-const fh=h=>(h>=24?'翌日 ':'')+pad(Math.floor(h%24))+':'+(h%1?'30':'00');
+const fh=h=>pad(Math.floor(h%24))+':'+(h%1?'30':'00');
 const ft=h=>pad(Math.floor(h))+':'+pad(Math.floor((h%1)*60));
 const WD=['週日','週一','週二','週三','週四','週五','週六'];
 const lb=d=>(d.getMonth()+1)+'/'+d.getDate()+' '+WD[d.getDay()];
