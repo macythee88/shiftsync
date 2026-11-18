@@ -68,7 +68,7 @@
   const r=await sb.rpc('record_attendance_with_qr',{p_qr_token:token,p_latitude:lat,p_longitude:lon,p_accuracy_m:accuracy});
   if(r.error){scanSubmitting=false;msg('empStatus','打卡失敗：'+r.error.message,'err');return}
   const d=r.data||{};
-  if(!d.ok){scanSubmitting=false;const reasons={invalid_qr:'QR Code 無效或已被重設。',invalid_location:'定位資料無效。',gps_accuracy_too_low:'GPS 精度不足，請重新定位。',outside_store_radius:'目前位置超出門店 15 米範圍。',already_checked_out:'今天已完成上下班打卡。'};msg('empStatus','打卡未成功：'+(reasons[d.reason]||d.reason)+' 請確認後重試。','err');return}
+  if(!d.ok){scanSubmitting=false;const reasons={invalid_qr:'QR Code 無效或已被重設。',outside_business_hours:'目前不在門店營業時間（08:00–02:00）內。',invalid_location:'定位資料無效。',gps_accuracy_too_low:'GPS 精度不足，請重新定位。',outside_store_radius:'目前位置超出門店 15 米範圍。',already_checked_out:'今天已完成上下班打卡。'};msg('empStatus','打卡未成功：'+(reasons[d.reason]||d.reason)+' 請確認後重試。','err');return}
   msg('empStatus',(d.action==='in'?'上班簽到':'下班簽退')+'成功！\n班次日期：'+d.work_date+'\n時間：'+displayTime(d.local_time)+'\n距離門店：約 '+d.distance_m+' 米','ok');
   lat=lon=accuracy=null;gpsAt=0;scanSubmitting=false;$('gpsInfo').textContent='尚未取得定位';$('scan').disabled=true;
  }
