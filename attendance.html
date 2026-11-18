@@ -18,7 +18,8 @@
  const env=window.SS_ENV||{}, sb=env.url&&window.supabase?supabase.createClient(env.url,env.key):null;
  const $=id=>document.getElementById(id), show=(id,on=true)=>$(id).classList.toggle('hidden',!on);
  const msg=(id,t,kind='')=>{const el=$(id);el.textContent=t;el.className='status '+kind};
- const taipeiDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const taipeiDate=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return p.find(x=>x.type==='year').value+'-'+p.find(x=>x.type==='month').value+'-'+p.find(x=>x.type==='day').value};
+ const displayTime=v=>{if(v==null)return '—';const n=((Number(v)%24)+24)%24;return String(Math.floor(n)).padStart(2,'0')+':'+String(Math.round((n%1)*60)).padStart(2,'0')};
  let user=null,isManager=false,store=null,lat=null,lon=null,accuracy=null,scanner=null,employees=[];
  async function init(){
   if(!sb){$('loading').textContent='Supabase 設定未完成。';return}
@@ -67,7 +68,7 @@
   if(r.error){msg('empStatus','打卡失敗：'+r.error.message,'err');return}
   const d=r.data||{};
   if(!d.ok){const reasons={invalid_qr:'QR Code 無效或已被重設。',invalid_location:'定位資料無效。',gps_accuracy_too_low:'GPS 精度不足，請重新定位。',outside_store_radius:'目前位置超出門店 15 米範圍。',already_checked_out:'今天已完成上下班打卡。'};msg('empStatus','打卡未成功：'+(reasons[d.reason]||d.reason)+' 請確認後重試。','err');return}
-  msg('empStatus',(d.action==='in'?'上班簽到':'下班簽退')+'成功！\n班次日期：'+d.work_date+'\n時間：'+Number(d.local_time).toFixed(2)+'\n距離門店：約 '+d.distance_m+' 米','ok');
+  msg('empStatus',(d.action==='in'?'上班簽到':'下班簽退')+'成功！\n班次日期：'+d.work_date+'\n時間：'+displayTime(d.local_time)+'\n距離門店：約 '+d.distance_m+' 米','ok');
   lat=lon=accuracy=null;$('gpsInfo').textContent='尚未取得定位';$('scan').disabled=true;
  }
  $('issueQr').onclick=async()=>{
@@ -81,13 +82,13 @@
   const reason=$('reason').value.trim();if(reason.length<5){msg('adjustStatus','請輸入至少 5 個字的原因。','err');return}
   const r=await sb.rpc('manager_adjust_attendance',{p_emp_id:$('emp').value,p_work_date:$('workDate').value,p_action:$('action').value,p_time:$('punchTime').value,p_reason:reason});
   if(r.error){msg('adjustStatus','儲存失敗：'+r.error.message,'err');return}
-  msg('adjustStatus','補登／更正已保存。原時間：'+(r.data.previous_time??'無')+'；新時間：'+r.data.new_time,'ok');
+  msg('adjustStatus','補登／更正已保存。原時間：'+displayTime(r.data.previous_time)+'；新時間：'+displayTime(r.data.new_time),'ok');
   $('reason').value='';await loadEvents();
  };
  async function loadEvents(){
   const r=await sb.from('attendance_events').select('*').order('recorded_at',{ascending:false}).limit(50);
   if(r.error){$('events').innerHTML='<tr><td colspan="6">讀取失敗：'+escapeHtml(r.error.message)+'</td></tr>';return}
-  $('events').innerHTML=(r.data||[]).map(x=>{const e=employees.find(v=>v.emp_id===x.emp_id);return '<tr><td>'+escapeHtml(e?.name||x.emp_id)+'</td><td>'+escapeHtml(x.work_date)+'</td><td>'+(x.punch_type==='in'?'簽到':'簽退')+'</td><td>'+(x.success?'成功 '+(x.local_time??''):'失敗 '+escapeHtml(x.failure_reason||''))+'</td><td>'+escapeHtml(x.source==='manager_manual'?'店長補登':'GPS＋QR')+(x.note?'：'+escapeHtml(x.note):'')+'</td><td>'+escapeHtml(new Date(x.recorded_at).toLocaleString())+'</td></tr>'}).join('')||'<tr><td colspan="6">尚無紀錄</td></tr>';
+  $('events').innerHTML=(r.data||[]).map(x=>{const e=employees.find(v=>v.emp_id===x.emp_id);return '<tr><td>'+escapeHtml(e?.name||x.emp_id)+'</td><td>'+escapeHtml(x.work_date)+'</td><td>'+(x.punch_type==='in'?'簽到':'簽退')+'</td><td>'+(x.success?'成功 '+(x.local_time==null?'':displayTime(x.local_time)):'失敗 '+escapeHtml(x.failure_reason||''))+'</td><td>'+escapeHtml(x.source==='manager_manual'?'店長補登':'GPS＋QR')+(x.note?'：'+escapeHtml(x.note):'')+'</td><td>'+escapeHtml(new Date(x.recorded_at).toLocaleString())+'</td></tr>'}).join('')||'<tr><td colspan="6">尚無紀錄</td></tr>';
  }
  $('reloadEvents').onclick=loadEvents;$('logout').onclick=()=>sb.auth.signOut().then(()=>location.href='index.html');
  init();
