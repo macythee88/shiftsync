@@ -188,14 +188,14 @@ begin
 
   v_timezone := coalesce(v_timezone, 'Asia/Taipei');
   v_local := now() at time zone v_timezone;
-  -- Store hours are 08:00–02:00. Punches between 00:00 and 01:59
-  -- belong to the previous business date and use 24:00–25:59 internally.
-  v_work_date := (v_local - interval '2 hours')::date;
+  -- The business day starts at 08:00. All punches before 08:00
+  -- (including the 00:00–02:00 overnight close) belong to the prior business date.
+  v_work_date := (v_local - interval '8 hours')::date;
   v_local_time := round(
     extract(hour from v_local)
     + extract(minute from v_local) / 60.0
     + extract(second from v_local) / 3600.0
-    + case when extract(hour from v_local) < 2 then 24 else 0 end,
+    + case when extract(hour from v_local) < 8 then 24 else 0 end,
     2
   );
 
@@ -330,13 +330,13 @@ begin
   v_punches := coalesce(v_punches, '{}'::jsonb);
   v_day := coalesce(v_punches -> p_work_date::text, '{}'::jsonb);
   v_previous := nullif(v_day ->> p_action, '')::numeric;
-  -- Manual corrections use the selected business date. Times 00:00–01:59
-  -- are represented as 24:00–25:59, matching the store's overnight shifts.
+  -- Manual corrections use the selected business date. Any clock time before
+  -- 08:00 is represented as 24:00–31:59 on the prior business date.
   v_new_time := round(
     extract(hour from p_time)
     + extract(minute from p_time) / 60.0
     + extract(second from p_time) / 3600.0
-    + case when extract(hour from p_time) < 2 then 24 else 0 end,
+    + case when extract(hour from p_time) < 8 then 24 else 0 end,
     2
   );
 
