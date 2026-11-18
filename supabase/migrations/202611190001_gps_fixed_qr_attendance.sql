@@ -94,7 +94,6 @@ grant select on public.stores to authenticated;
 revoke all on public.attendance_qr from anon, authenticated;
 revoke all on public.attendance_events from anon, authenticated;
 grant select on public.attendance_events to authenticated;
-grant usage, select on sequence public.attendance_events_id_seq to authenticated;
 
 create or replace function public.issue_fixed_attendance_qr(p_store_id uuid)
 returns text
@@ -113,7 +112,7 @@ begin
     raise exception 'store_not_found_or_inactive';
   end if;
 
-  v_token := encode(extensions.gen_random_bytes(32), 'hex');
+  v_token := encode(gen_random_bytes(32), 'hex');
 
   update public.attendance_qr
      set is_active = false, disabled_at = now()
@@ -122,7 +121,7 @@ begin
   insert into public.attendance_qr(store_id, token_hash)
   values (
     p_store_id,
-    extensions.digest(convert_to(v_token, 'UTF8'), 'sha256')
+    digest(convert_to(v_token, 'UTF8'), 'sha256')
   );
 
   -- Display this value once as the QR payload. Do not put it in source code.
@@ -179,7 +178,7 @@ begin
       into v_store_id, v_store_lat, v_store_lon, v_radius, v_timezone
       from public.attendance_qr q
       join public.stores s on s.id = q.store_id
-     where q.token_hash = extensions.digest(convert_to(p_qr_token, 'UTF8'), 'sha256')
+     where q.token_hash = digest(convert_to(p_qr_token, 'UTF8'), 'sha256')
        and q.is_active
        and s.is_active
      limit 1;
