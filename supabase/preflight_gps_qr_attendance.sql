@@ -26,17 +26,16 @@ with checks as (
     case when (select relrowsecurity from pg_class where oid='public.emp_data'::regclass) then 'enabled' else 'disabled' end,'enabled'
   union all select 'manager table',
     case when to_regclass('public.managers') is null then 'MISSING' else 'present' end,'present'
-  union all select 'main-store existing row',
-    coalesce((select latitude::text||','||longitude::text||'; radius='||radius_m::text||'m; timezone='||timezone
-      from public.stores where slug='main-store'),'not created yet'),
-    '25.0876558,121.4703595; 15m; Asia/Taipei'
+  union all select 'stores table before migration',
+    case when to_regclass('public.stores') is null then 'not created yet' else 'already exists' end,
+    'not created yet (or review existing table before migration)'
 )
 select check_name,actual,expected,
  case
   when check_name in ('emp_data.emp_id type','emp_data.punches type','emp_data.user_id type','public.is_mgr()','public.punch_me()','emp_data RLS','manager table')
        and actual=expected then 'OK'
   when check_name='extensions schema' and actual='present' then 'OK'
-  when check_name in ('pgcrypto extension schema','main-store existing row') then 'REVIEW'
+  when check_name in ('pgcrypto extension schema','stores table before migration') then 'REVIEW'
   else 'CHECK'
  end status
 from checks order by check_name;
