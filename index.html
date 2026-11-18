@@ -81,11 +81,11 @@ const pd=s=>{const[a,b,c]=s.split('-');return new Date(+a,+b-1,+c)};
 const addD=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 const mon=d=>addD(d,-((d.getDay()+6)%7));
 const fh=h=>pad(Math.floor(h%24))+':'+(h%1?'30':'00');
-const ft=h=>pad(Math.floor(h))+':'+pad(Math.floor((h%1)*60));
+const ft=h=>pad(Math.floor(h%24))+':'+pad(Math.floor((h%1)*60));
 const WD=['週日','週一','週二','週三','週四','週五','週六'];
 const lb=d=>(d.getMonth()+1)+'/'+d.getDate()+' '+WD[d.getDay()];
 let EMP=[];const H=[...Array(19)].map((_,i)=>i+7),NEED=3;
-const TODAY=new Date();TODAY.setHours(0,0,0,0);const TK=ymd(TODAY);
+const TODAY=new Date();const BIZ_NOW=new Date(Date.now()-8*60*60*1000);const BIZ_PARTS=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(BIZ_NOW);const TK=BIZ_PARTS.find(x=>x.type==='year').value+'-'+BIZ_PARTS.find(x=>x.type==='month').value+'-'+BIZ_PARTS.find(x=>x.type==='day').value;
 let S,U={role:'e',emp:'w',wk:mon(TODAY),mm:new Date(TODAY.getFullYear(),TODAY.getMonth(),1),ev:'cal',focus:null};
 let CFG=null,st,dirty=0;const ENV=window.SS_ENV||{},sb=ENV.url&&window.supabase?supabase.createClient(ENV.url,ENV.key):null;
 const save=()=>{if(!CFG)return;dirty=1;clearTimeout(st);st=setTimeout(push,400)};
@@ -153,7 +153,7 @@ function rEmp(){
  h+=`<section><h2>今日打卡（${lb(TODAY)}）</h2><div class=punch>`;
  if(!sh.length)h+=clo(TK)?'<div class=mute>今日店休</div>':'<div class=mute>今日無排班，無需打卡</div>';
  else{const cls=!a.i?'in':!a.o?'out':'dn',tx=!a.i?'點我<br>上班打卡':!a.o?'點我<br>下班打卡':'今日出勤<br>已完成';
-  h+=`<div class=mute>📍 當前定位：門店範圍內（距離 15 米） · 今日班次 ${sh.map(x=>fh(x.s)+'-'+fh(x.e)).join('，')}</div><button class="disc ${cls}" id=disc ${cls=='dn'?'disabled':''}>${tx}</button><div class=mute>${cls=='dn'?'':'長按 0.5 秒打卡，防止誤觸'}</div>`;
+  h+=`<div class=mute>今日班次 ${sh.map(x=>fh(x.s)+'-'+fh(x.e)).join('，')}</div><a class="b p" href="attendance.html" style="display:inline-block;text-decoration:none;padding:12px 22px;border-radius:10px">📍 GPS + QR Code 打卡</a><div class=mute>需先取得定位，再掃描店內固定 QR Code</div>`;
   if(a.i)h+=`<div>上班 ${ft(a.i)} ${a.i<=sh[0].s+.1?'<span class="tag ok">準時</span>':'<span class="tag rd">遲到</span>'}${a.o?' · 下班 '+ft(a.o):''}</div>`}
  h+='</div></section>';
  h+=`<section><h2>我的班表（月曆）</h2><div class=row><button class=b data-a=em data-v=-1>◀ 上月</button><b>${U.mm.getFullYear()}年${U.mm.getMonth()+1}月</b><button class=b data-a=em data-v=1>下月 ▶</button><button class=b data-a=em data-v=0>本月</button></div><div class=cal>${['日','一','二','三','四','五','六'].map(x=>`<div class=h>${x}</div>`).join('')}${'<div style="border:0"></div>'.repeat(U.mm.getDay())}${[...Array(new Date(U.mm.getFullYear(),U.mm.getMonth()+1,0).getDate())].map((_,i)=>{const d=new Date(U.mm.getFullYear(),U.mm.getMonth(),i+1),k=ymd(d),o=okS(e.id,k);return `<div class=c data-a=cd data-k=${k}><b>${i+1}</b>${o.length?o.map(x=>`<div class="chip ok">${fh(x.s)}–${fh(x.e)}</div>`).join(''):'<span class=mute>休息</span>'}</div>`}).join('')}</div><div class=mute>点击日期查看当天正式班次；跨日班次标示隔日。</div></section><section><h2>排班與申報</h2><div class=row><button class="b ${U.ev=='cal'?'p':''}" data-a=ev data-v=cal>日曆檢視</button><button class="b ${U.ev=='tl'?'p':''}" data-a=ev data-v=tl>時間表明細</button></div>${wkNav()}`;
@@ -186,14 +186,14 @@ function managerNotifications(){const rows=(S.notifs||[]).filter(n=>!n.read_at||
 function rMgr(){
  const ds=week(),pend=[];EMP.forEach(e=>Object.entries(S.off[e.id]).forEach(([k,a])=>a.forEach(x=>{if(x.st=='pend')pend.push([e,k,x])})));
  const ob=Object.keys(S.obj).filter(k=>S.obj[k]).length;
- let h=managerNotifications();
+ let h=managerNotifications();h+=`<section><h2>GPS + QR 考勤管理</h2><p class=mute>產生店內固定 QR Code、查看 GPS＋QR 打卡紀錄，以及記錄店長補登／更正原因。</p><a class="b p" href="attendance.html" style="display:inline-block;text-decoration:none;padding:10px 16px;border-radius:8px">📍 開啟考勤管理</a></section>`;
  if(ob)h+=`<div class=card><b>🔴 有 ${ob} 條員工異議待溝通</b>，見下方“確認狀態追蹤”。</div>`;
  h+=`<section><h2>周排程大盤</h2>${wkNav()}<div class=row><button class="b p" data-a=adopt>✨ 一鍵確認並採納本週最新意向</button><span class=mute><span class="chip it">意向</span> <span class="chip ok">正式</span> <span class=gp>紅色=缺口</span>，點選任意格子調班</span></div><div class=sc><table><tr><th>員工${ds.map(d=>`<th class="${ymd(d)==TK?'td':''}">${lb(d)}${ymd(d)==TK?' 🎯':''}${clo(ymd(d))?' 🔒店休':''}`).join('')}</tr>`;
  EMP.forEach(e=>h+=`<tr><th>${e.n}<div class=mute>${e.r}</div>${ds.map(d=>cell(e,d)).join('')}</tr>`);
  h+=`<tr><th>餐期水位${ds.map(d=>`<td>${clo(ymd(d))?'<span class=mute>店休</span>':gap(ymd(d)).map(([n,c])=>`<div class="${c<NEED?'gp':'gk'}">${n} ${c}/${NEED}${c<NEED?' 缺'+(NEED-c)+'人':''}</div>`).join('')}</td>`).join('')}</tr></table></div></section>`;
  h+=`<section><h2>確認狀態追蹤</h2>`+(pend.length?`<div class=sc><table><tr><th>員工<th>日期<th>調整後班次<th>狀態<th>操作</tr>${pend.map(([e,k,x])=>`<tr><td>${e.n}<td>${lb(pd(k))}<td>${fh(x.s)}-${fh(x.e)}<td>${S.obj[e.id+k]?'<span class="tag rd">員工有異議</span>':'<span class="tag it">⏳ 待員工同意</span>'}<td><button class=b data-a=cell data-e=${e.id} data-d=${k}>✏️ 代改班次</button></tr>`).join('')}</table></div>`:'<div class=mute>沒有待確認的班次，全部已生效。</div>')+'</section>';
  const tg=gap(TK);
- h+=`<section><h2>今日出勤看板（${lb(TODAY)}）</h2><div class=row><span class="tag ok">在崗 ${EMP.filter(e=>{const a=S.at[e.id][TK];return a&&a.i!=null&&a.o==null}).length} 人</span>${clo(TK)?'<span class="tag it">今日店休</span>':tg.map(([n,c])=>`<span class="tag ${c<NEED?'rd':'ok'}">${n} ${c}/${NEED}</span>`).join('')}${!clo(TK)&&tg[1][1]<NEED?'<button class=b data-a=disp>🚨 緊急呼叫在休員工到晚市</button>':''}</div><div class=sc><table><tr><th>員工<th>今日班次<th>打卡記錄<th>代打卡</tr>${EMP.map(e=>{const o=okS(e.id,TK),a=S.at[e.id][TK]||{};return `<tr><td>${e.n}<td>${o.length?o.map(x=>fh(x.s)+'-'+fh(x.e)).join(', '):'休息'}<td>${a.i!=null?ft(a.i)+(a.iby?'（代）':'')+' 簽到 / '+(a.o!=null?ft(a.o)+(a.oby?'（代）':'')+' 簽退':'未簽退'):'未簽到'}<td>${a.o!=null?'<span class="tag ok">已完成</span>':a.i!=null?`<button class=b data-a=pout data-e=${e.id}>⏱️ 代簽退</button>`:`<button class=b data-a=pin data-e=${e.id}>⏱️ 代簽到</button>`}</tr>`}).join('')}</table></div></section>`;
+ h+=`<section><h2>今日出勤看板（${lb(TODAY)}）</h2><div class=row><span class="tag ok">在崗 ${EMP.filter(e=>{const a=S.at[e.id][TK];return a&&a.i!=null&&a.o==null}).length} 人</span>${clo(TK)?'<span class="tag it">今日店休</span>':tg.map(([n,c])=>`<span class="tag ${c<NEED?'rd':'ok'}">${n} ${c}/${NEED}</span>`).join('')}${!clo(TK)&&tg[1][1]<NEED?'<button class=b data-a=disp>🚨 緊急呼叫在休員工到晚市</button>':''}</div><div class=sc><table><tr><th>員工<th>今日班次<th>打卡記錄<th>補登／更正</tr>${EMP.map(e=>{const o=okS(e.id,TK),a=S.at[e.id][TK]||{};return `<tr><td>${e.n}<td>${o.length?o.map(x=>fh(x.s)+'-'+fh(x.e)).join(', '):'休息'}<td>${a.i!=null?ft(a.i)+(a.iby?'（代）':'')+' 簽到 / '+(a.o!=null?ft(a.o)+(a.oby?'（代）':'')+' 簽退':'未簽退'):'未簽到'}<td><a class=b href="attendance.html#adjust" style="text-decoration:none">📝 補登／更正</a></tr>`}).join('')}</table></div></section>`;
  h+=cloMgr();h+=empMgr();const m=U.mm,y=m.getFullYear(),mo=m.getMonth(),arch=m<new Date(TODAY.getFullYear(),TODAY.getMonth(),1),n=new Date(y,mo+1,0).getDate(),off=(m.getDay()+6)%7;
  h+=`<section><h2>全月排班月曆 ${arch?'<span class="tag it">📂 已歸檔 / 只讀</span>':''}</h2><div class=row><button class=b data-a=mm data-v=-1>◀ 上月</button><b>${y}年${mo+1}月</b><button class=b data-a=mm data-v=1>下月 ▶</button><button class=b data-a=mm data-v=0>當前月</button><button class=b data-a=exp>📥 匯出月報</button></div><div class=sc><div class="cal mc">${['一','二','三','四','五','六','日'].map(x=>`<div class=h>周${x}</div>`).join('')}${'<div style="border:0"></div>'.repeat(off)}${[...Array(n)].map((_,i)=>{const k=ymd(new Date(y,mo,i+1)),L=clo(k)?'<br><span class=mute>店休'+(cln(k)?'：'+cln(k):'')+'</span>':EMP.map(e=>{const o=S.off[e.id][k]||[];return o.length?`<div class="chip ${o.every(x=>x.st=='ok')?'ok':'pd'}">${e.n} ${o.map(x=>fh(x.s)+'-'+fh(x.e)).join(', ')}</div>`:''}).join('');return `<div class="${k==TK?'td':''} ${clo(k)?'cl':''}"><b>${i+1}日</b>${L||'<br><span class=mute>無排班</span>'}</div>`}).join('')}</div></div></section>`;
  return h}
@@ -256,7 +256,6 @@ function act(a,d){
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.tagName=='SELECT')return;if(b.tagName=='TD'&&e.target.closest('button'))return;act(b.dataset.a,b.dataset)});
 document.addEventListener('change',e=>{const s=e.target;if(s.dataset.a=='emp'){U.emp=s.value;render()}else if(s.dataset.a=='chk')chk()});
 $('#m').addEventListener('click',e=>{if(e.target.id=='m')hideM()});
-let ht;document.addEventListener('pointerdown',e=>{const b=e.target.closest('#disc');if(!b||b.disabled)return;b.classList.add('hold');ht=setTimeout(()=>{if(CFG){sb.rpc('punch_me').then(r=>{if(r.error)toast('打卡失敗');else{load();toast('打卡成功')}});return}const id=U.emp,a=S.at[id][TK]||(S.at[id][TK]={}),n=new Date();a[a.i==null?'i':'o']=n.getHours()+n.getMinutes()/60;save();render();toast('打卡成功')},500)});
-['pointerup','pointerleave','pointercancel'].forEach(t=>document.addEventListener(t,e=>{if(e.target.closest&&e.target.closest('#disc')||t!='pointerleave'){clearTimeout(ht);document.querySelector('#disc')?.classList.remove('hold')}}));
+// Legacy long-press punch handler removed. Attendance is handled by attendance.html.
 if(!sb){$('#app').innerHTML='<section><h2>系統尚未完成正式環境設定</h2><p>請管理員在部署環境設定 Supabase Project URL 與 anon public key。為保護正式員工資料，系統不再提供本機演示模式或演示資料重置。</p></section>';$('#lg').hidden=true;}else{Promise.resolve(window.__SS_LIFF_READY).finally(()=>sb.auth.getSession().then(({data})=>data.session?enter(data.session):showLogin()))}
 </script></body></html>
