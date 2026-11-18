@@ -363,3 +363,10 @@ grant execute on function public.manager_adjust_attendance(text, date, text, tim
 -- After reviewing this migration, the administrator can issue the one-time QR token:
 -- select public.issue_fixed_attendance_qr(id) from public.stores where slug = 'main-store';
 -- Keep the returned token private and encode it into the printed QR image.
+
+
+-- IMPORTANT CUTOVER STEP:
+-- Apply this revoke in the same coordinated release as the new employee UI.
+-- The legacy punch_me() RPC has no GPS/QR parameters and would otherwise bypass
+-- the new checks if left executable by employees.
+revoke all on function public.punch_me() from public, anon, authenticated;
