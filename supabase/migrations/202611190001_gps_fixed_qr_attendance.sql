@@ -200,7 +200,7 @@ begin
 
   if not v_qr_valid then
     v_reason := 'invalid_qr';
-  elsif extract(hour from v_local) >= 2 and extract(hour from v_local) < 8 then
+  elsif v_local::time > time '02:00' and v_local::time < time '08:00' then
     -- The store is closed from 02:00 until 08:00. The 02:00 closing
     -- boundary is accepted; times after 02:00 are rejected.
     v_reason := 'outside_business_hours';
