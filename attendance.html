@@ -20,7 +20,7 @@
  const msg=(id,t,kind='')=>{const el=$(id);el.textContent=t;el.className='status '+kind};
  const taipeiDate=()=>{const businessNow=new Date(Date.now()-8*60*60*1000);const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(businessNow);return p.find(x=>x.type==='year').value+'-'+p.find(x=>x.type==='month').value+'-'+p.find(x=>x.type==='day').value};
  const displayTime=v=>{if(v==null)return '—';const n=((Number(v)%24)+24)%24;return String(Math.floor(n)).padStart(2,'0')+':'+String(Math.round((n%1)*60)).padStart(2,'0')};
- let user=null,isManager=false,store=null,lat=null,lon=null,accuracy=null,scanner=null,employees=[];
+ let user=null,isManager=false,store=null,lat=null,lon=null,accuracy=null,gpsAt=0,scanner=null,employees=[],scanSubmitting=false;
  async function init(){
   if(!sb){$('loading').textContent='Supabase 設定未完成。';return}
   const {data:{session}}=await sb.auth.getSession();
@@ -45,14 +45,14 @@
   if(!navigator.geolocation){msg('empStatus','此瀏覽器不支援 GPS 定位。','err');return}
   msg('empStatus','正在取得高精度定位…');
   navigator.geolocation.getCurrentPosition(pos=>{
-   lat=pos.coords.latitude;lon=pos.coords.longitude;accuracy=pos.coords.accuracy;
+   lat=pos.coords.latitude;lon=pos.coords.longitude;accuracy=pos.coords.accuracy;gpsAt=Date.now();
    $('gpsInfo').textContent='定位精度 ±'+Math.round(accuracy)+' 米';
    if(accuracy>20){lat=lon=accuracy=null;$('scan').disabled=true;msg('empStatus','定位精度不足（需 20 米以內）。請移至戶外或靠近窗邊重新定位。','err');return}
    $('scan').disabled=false;msg('empStatus','GPS 已取得。下一步請掃描店內固定 QR Code。','ok');
   },err=>msg('empStatus','無法取得定位：'+err.message+'。請允許此網站使用定位並確認 GPS 已開啟。','err'),{enableHighAccuracy:true,maximumAge:0,timeout:20000});
  };
  $('scan').onclick=async()=>{
-  if(lat===null||lon===null||accuracy===null){msg('empStatus','請先取得 GPS 定位。','err');return}
+  if(lat===null||lon===null||accuracy===null){msg('empStatus','請先取得 GPS 定位。','err');return}if(Date.now()-gpsAt>60000){lat=lon=accuracy=null;$('scan').disabled=true;msg('empStatus','定位已超過 1 分鐘，請重新取得 GPS。','err');return}
   if(!window.Html5Qrcode){msg('empStatus','掃碼模組載入失敗，請重新整理頁面。','err');return}
   try{
    scanner=new Html5Qrcode('reader');$('scan').disabled=true;$('stopScan').disabled=false;
@@ -63,13 +63,14 @@
  };
  $('stopScan').onclick=async()=>{if(scanner){try{if(scanner.isScanning)await scanner.stop();await scanner.clear()}catch(e){}scanner=null}$('scan').disabled=!lat;$('stopScan').disabled=true};
  async function submitPunch(token){
+  if(scanSubmitting)return;scanSubmitting=true;
   msg('empStatus','正在由伺服器驗證 QR Code 與門店距離…');
   const r=await sb.rpc('record_attendance_with_qr',{p_qr_token:token,p_latitude:lat,p_longitude:lon,p_accuracy_m:accuracy});
-  if(r.error){msg('empStatus','打卡失敗：'+r.error.message,'err');return}
+  if(r.error){scanSubmitting=false;msg('empStatus','打卡失敗：'+r.error.message,'err');return}
   const d=r.data||{};
-  if(!d.ok){const reasons={invalid_qr:'QR Code 無效或已被重設。',invalid_location:'定位資料無效。',gps_accuracy_too_low:'GPS 精度不足，請重新定位。',outside_store_radius:'目前位置超出門店 15 米範圍。',already_checked_out:'今天已完成上下班打卡。'};msg('empStatus','打卡未成功：'+(reasons[d.reason]||d.reason)+' 請確認後重試。','err');return}
+  if(!d.ok){scanSubmitting=false;const reasons={invalid_qr:'QR Code 無效或已被重設。',invalid_location:'定位資料無效。',gps_accuracy_too_low:'GPS 精度不足，請重新定位。',outside_store_radius:'目前位置超出門店 15 米範圍。',already_checked_out:'今天已完成上下班打卡。'};msg('empStatus','打卡未成功：'+(reasons[d.reason]||d.reason)+' 請確認後重試。','err');return}
   msg('empStatus',(d.action==='in'?'上班簽到':'下班簽退')+'成功！\n班次日期：'+d.work_date+'\n時間：'+displayTime(d.local_time)+'\n距離門店：約 '+d.distance_m+' 米','ok');
-  lat=lon=accuracy=null;$('gpsInfo').textContent='尚未取得定位';$('scan').disabled=true;
+  lat=lon=accuracy=null;gpsAt=0;scanSubmitting=false;$('gpsInfo').textContent='尚未取得定位';$('scan').disabled=true;
  }
  $('issueQr').onclick=async()=>{
   if(!confirm('重新產生會立即讓舊 QR Code 失效。確定繼續？'))return;
