@@ -49,8 +49,8 @@ td[data-a=cell]{cursor:pointer;min-width:104px}td[data-a=cell]:hover{background:
 .card{border:2px solid var(--red);background:var(--rb);border-radius:10px;padding:12px;margin-bottom:10px}
 .big{font-size:28px;font-weight:700}
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
-.cal>div{border:1px solid var(--line);border-radius:8px;padding:6px;min-height:78px;font-size:12px;overflow:hidden;word-break:break-all}
-.cal .c{cursor:pointer}.cal .h{background:var(--bg);text-align:center;min-height:0}.mc{min-width:840px}.mc .chip{white-space:normal}
+.cal>div{border:1px solid var(--line);border-radius:8px;padding:6px;min-height:78px;font-size:12px;overflow:hidden;overflow-wrap:anywhere;min-width:0}
+.cal .c{cursor:pointer}.cal .h{background:var(--bg);text-align:center;min-height:0}.mc{width:100%;min-width:0;grid-template-columns:repeat(7,minmax(0,1fr))}.mc>div{padding:4px;min-width:0}.mc .chip{white-space:normal;overflow-wrap:anywhere;line-height:1.3}
 .tag{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px}
 .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:9}
 .mask[hidden]{display:none}
@@ -60,7 +60,7 @@ textarea{width:100%;height:240px;font:12px monospace;background:var(--bg);color:
 #t[hidden]{display:none}
 input{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px;min-height:38px;max-width:100%}
 button:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
-@media(max-width:600px){.hrs{grid-template-columns:repeat(8,minmax(0,1fr))}.hrs button{font-size:11px;min-height:36px}.disc{width:170px;height:170px}}
+@media(max-width:600px){.hrs{grid-template-columns:repeat(8,minmax(0,1fr))}.hrs button{font-size:11px;min-height:36px}.disc{width:170px;height:170px}.cal{gap:2px}.cal>div{padding:3px;min-height:64px;font-size:10px}.mc .chip{font-size:9px;padding:2px 3px;margin:1px 0}.mc>div{border-radius:5px}}
 </style></head><body>
 <header><b>ShiftSync 餐飲排班與考勤</b>
 <div class="seg" hidden><button data-a="role" data-v="e">員工端</button><button data-a="role" data-v="m">店長端</button></div>
@@ -80,7 +80,7 @@ const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const pd=s=>{const[a,b,c]=s.split('-');return new Date(+a,+b-1,+c)};
 const addD=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 const mon=d=>addD(d,-((d.getDay()+6)%7));
-const fh=h=>pad(Math.floor(h%24))+':'+(h%1?'30':'00');
+const fh=h=>(h>=24?'翌日 ':'')+pad(Math.floor(h%24))+':'+(h%1?'30':'00');
 const ft=h=>pad(Math.floor(h))+':'+pad(Math.floor((h%1)*60));
 const WD=['週日','週一','週二','週三','週四','週五','週六'];
 const lb=d=>(d.getMonth()+1)+'/'+d.getDate()+' '+WD[d.getDay()];
@@ -156,7 +156,7 @@ function rEmp(){
   h+=`<div class=mute>📍 當前定位：門店範圍內（距離 15 米） · 今日班次 ${sh.map(x=>fh(x.s)+'-'+fh(x.e)).join('，')}</div><button class="disc ${cls}" id=disc ${cls=='dn'?'disabled':''}>${tx}</button><div class=mute>${cls=='dn'?'':'長按 0.5 秒打卡，防止誤觸'}</div>`;
   if(a.i)h+=`<div>上班 ${ft(a.i)} ${a.i<=sh[0].s+.1?'<span class="tag ok">準時</span>':'<span class="tag rd">遲到</span>'}${a.o?' · 下班 '+ft(a.o):''}</div>`}
  h+='</div></section>';
- h+=`<section><h2>我的班表（月曆）</h2><div class=row><button class=b data-a=em data-v=-1>◀ 上月</button><b>${U.mm.getFullYear()}年${U.mm.getMonth()+1}月</b><button class=b data-a=em data-v=1>下月 ▶</button><button class=b data-a=em data-v=0>本月</button></div><div class=cal>${['日','一','二','三','四','五','六'].map(x=>`<div class=h>${x}</div>`).join('')}${'<div style="border:0"></div>'.repeat(U.mm.getDay())}${[...Array(new Date(U.mm.getFullYear(),U.mm.getMonth()+1,0).getDate())].map((_,i)=>{const d=new Date(U.mm.getFullYear(),U.mm.getMonth(),i+1),k=ymd(d),o=okS(e.id,k);return `<div class=c data-a=cd data-k=${k}><b>${i+1}</b>${o.length?o.map(x=>`<div class="chip ok">${fh(x.s)}–${fh(x.e)}${x.e>=24?'（隔日）':''}</div>`).join(''):'<span class=mute>休息</span>'}</div>`}).join('')}</div><div class=mute>点击日期查看当天正式班次；跨日班次标示隔日。</div></section><section><h2>排班與申報</h2><div class=row><button class="b ${U.ev=='cal'?'p':''}" data-a=ev data-v=cal>日曆檢視</button><button class="b ${U.ev=='tl'?'p':''}" data-a=ev data-v=tl>時間表明細</button></div>${wkNav()}`;
+ h+=`<section><h2>我的班表（月曆）</h2><div class=row><button class=b data-a=em data-v=-1>◀ 上月</button><b>${U.mm.getFullYear()}年${U.mm.getMonth()+1}月</b><button class=b data-a=em data-v=1>下月 ▶</button><button class=b data-a=em data-v=0>本月</button></div><div class=cal>${['日','一','二','三','四','五','六'].map(x=>`<div class=h>${x}</div>`).join('')}${'<div style="border:0"></div>'.repeat(U.mm.getDay())}${[...Array(new Date(U.mm.getFullYear(),U.mm.getMonth()+1,0).getDate())].map((_,i)=>{const d=new Date(U.mm.getFullYear(),U.mm.getMonth(),i+1),k=ymd(d),o=okS(e.id,k);return `<div class=c data-a=cd data-k=${k}><b>${i+1}</b>${o.length?o.map(x=>`<div class="chip ok">${fh(x.s)}–${fh(x.e)}</div>`).join(''):'<span class=mute>休息</span>'}</div>`}).join('')}</div><div class=mute>点击日期查看当天正式班次；跨日班次标示隔日。</div></section><section><h2>排班與申報</h2><div class=row><button class="b ${U.ev=='cal'?'p':''}" data-a=ev data-v=cal>日曆檢視</button><button class="b ${U.ev=='tl'?'p':''}" data-a=ev data-v=tl>時間表明細</button></div>${wkNav()}`;
  if(U.ev=='cal'){h+='<div class=cal>'+['一','二','三','四','五','六','日'].map(x=>`<div class=h>周${x}</div>`).join('')+ds.map(d=>{const k=ymd(d),o=S.off[e.id][k]||[];let c=o.length?o.map(x=>`<div class="chip ${x.st=='ok'?'ok':'pd'}">${fh(x.s)}-${fh(x.e)}${x.st=='ok'?'':' ⏳'}</div>`).join(''):'<span class=mute>休息</span>';return `<div class="c ${k==TK?'td':''}" data-a=cd data-k=${k}><b>${d.getMonth()+1}/${d.getDate()}</b>${clo(k)?'<span class=mute>店休</span>':c}</div>`}).join('')+'</div><div class=mute style="margin-top:6px">點選任意日期，可檢視班次或重報空閒時段</div>'}
  else{let tot=0,pay=0;const rows=ds.map(d=>{const k=ymd(d),o=okS(e.id,k);if(!o.length)return '';const a=S.at[e.id][k]||{},pl=o.reduce((s,x)=>s+x.e-x.s,0),hr=a.i!=null&&a.o!=null?a.o-a.i:pl,pa=hr*e.rate;tot+=hr;pay+=pa;return `<tr><td>${lb(d)}</td><td>${o.map(x=>fh(x.s)+'-'+fh(x.e)).join(', ')}</td><td>${a.i!=null?ft(a.i)+' 簽到 / '+(a.o!=null?ft(a.o)+' 簽退':'未簽退'):'-'}</td><td>${hr.toFixed(1)} h${a.o==null?'（預估）':''}</td><td>NT$${pa.toFixed(0)}</td></tr>`}).join('');
   h+=`<div class=sc><table><tr><th>日期<th>計劃班次<th>打卡記錄<th>工時<th>預估薪資</tr>${rows}<tr><th colspan=3>本週合計<th>${tot.toFixed(1)} h<th>NT$${pay.toFixed(0)}</tr></table></div>`}
