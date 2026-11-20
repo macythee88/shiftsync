@@ -256,7 +256,8 @@ function act(a,d){
  else if(a=='out'){sb.auth.signOut().then(()=>location.reload());return}
  else if(a=='pw'){const p=prompt('請輸入新密碼（至少 6 碼）');if(p)staff('reset',{emp_id:d.e,password:p});return}
  else if(a=='manager-profile'){const name=$('#mn').value.trim(),title=$('#mt').value.trim()||'店長',rate=Number($('#mr').value);if(!name){toast('請填寫姓名');return}if($('#mr').value.trim()===''||!Number.isFinite(rate)||rate<0){toast('請填寫有效的時薪');return}(async()=>{const u=await sb.auth.getUser();if(u.error||!u.data.user){toast('無法確認目前登入帳號');return}const id='mgr_'+u.data.user.id;const a=await sb.from('emp_data').insert({emp_id:id,name,title,rate,email:CFG.login,user_id:u.data.user.id,av:{},off:{},punches:{},sub:{},obj:{},acks:{}});if(a.error){toast('建立失敗：'+a.error.message);return}CFG.me=id;U.emp=id;await load();U.role='e';render();toast('店長員工資料已建立並綁定目前帳號')})() ;return}
- else if(a=='login'){doLogin();return}\n else if(a=='line-login'){doLineLogin();return}
+ else if(a=='login'){doLogin();return}
+ else if(a=='line-login'){doLineLogin();return}
  else if(a=='cw'){const w=+d.w,i=S.closed.wd.indexOf(w);if(i<0){S.closed.wd.push(w);const n=purge(k=>pd(k).getDay()==w);toast('已設為每週店休'+(n?'，移除 '+n+' 筆原有班次':''))}else S.closed.wd.splice(i,1)}
  else if(a=='cadd'){const k=$('#cd').value;if(!k){toast('請選擇日期');return}S.closed.dates[k]=$('#cn').value.trim();const n=purge(x=>x==k);toast('已新增店休日'+(n?'，移除 '+n+' 筆原有班次':''))}
  else if(a=='cdel'){delete S.closed.dates[d.k]}
