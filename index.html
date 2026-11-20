@@ -69,7 +69,7 @@ button:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <main id="app"></main>
-<div id="lg" class="mask" hidden style="align-items:center"><div class="sheet" style="border-radius:14px;max-width:380px"><h2>ShiftSync 員工排班</h2><div class="row"><input id="le" type="email" placeholder="Email" style="width:100%"></div><div class="row"><input id="lp" type="password" placeholder="密碼" style="width:100%"></div><div id="lm" class="gp"></div><div class="row"><button class="b p" data-a="login" style="width:100%">登入</button></div></div></div>
+<div id="lg" class="mask" hidden style="align-items:center"><div class="sheet" style="border-radius:14px;max-width:380px"><h2>ShiftSync 員工排班</h2><div class="row"><input id="le" type="email" placeholder="Email" style="width:100%"></div><div class="row"><input id="lp" type="password" placeholder="密碼" style="width:100%"></div><div id="lm" class="gp"></div><div class="row"><button class="b p" data-a="login" style="width:100%">Email 登入</button></div><div class="row"><button class="b" data-a="line-login" style="width:100%">使用 LINE 登入</button></div><p class="mute">首次使用 LINE 前，請先以 Email 登入一次完成帳號綁定。</p></div></div>
 <div class="mask" id="m" hidden><div class="sheet" id="sh"></div></div>
 <div id="t" hidden></div>
 <script>
@@ -137,6 +137,19 @@ async function staff(action,body){const r=await sb.functions.invoke('manage-staf
 async function bindLineAccount(){try{if(!window.liff||!await window.__SS_LIFF_READY||!liff.isLoggedIn())return;const id_token=liff.getIDToken();if(!id_token)return;const r=await sb.functions.invoke('line-link',{body:{id_token}});if(r.error){console.warn('LINE account linking failed',r.error);return}console.info('ShiftSync LINE account linked')}catch(e){console.warn('LINE account linking unavailable',e)}}
 function showLogin(t){$('#lg').hidden=false;$('#lm').textContent=t||''}
 async function doLogin(){const r=await sb.auth.signInWithPassword({email:$('#le').value.trim(),password:$('#lp').value});if(r.error){showLogin('登入失敗：帳號或密碼錯誤');return}enter(r.data.session)}
+async function doLineLogin(){
+ try{
+  if(!window.liff||!await window.__SS_LIFF_READY){showLogin('LINE 登入尚未就緒，請稍後再試或使用 Email 登入');return}
+  if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return}
+  const id_token=liff.getIDToken();if(!id_token){showLogin('無法取得 LINE 身分憑證，請重新開啟 LINE 登入');return}
+  const r=await sb.functions.invoke('line-login',{body:{id_token}});
+  if(r.error){const detail=await r.error.context?.json?.().catch(()=>null);showLogin(detail?.error||'此 LINE 尚未綁定 ShiftSync，請先使用 Email 登入一次');return}
+  if(!r.data?.token_hash){showLogin('LINE 登入驗證失敗，請使用 Email 登入');return}
+  const v=await sb.auth.verifyOtp({token_hash:r.data.token_hash,type:'magiclink'});
+  if(v.error||!v.data.session){showLogin('LINE 登入憑證已失效，請重新登入');return}
+  await enter(v.data.session);
+ }catch(e){console.warn('LINE login failed',e);showLogin('LINE 登入暫時無法使用，請改用 Email 登入')}
+}
 
 async function submitDay(k,quiet=false,notify=true){const id=CFG?.me||U.emp;if(!id||!emp(id)){if(!quiet)toast('找不到員工帳號');return false}const vals=S.av[id][k]||[];if(!vals.length){if(!quiet)toast('請先選擇時段');return false}const action=S.sub[id+k]?'updated':'submitted';const sub={};Object.keys(S.sub).forEach(x=>{if(x.startsWith(id)&&S.sub[x])sub[x.slice(id.length)]=1});sub[k]=1;const up=await sb.from('emp_data').update({av:S.av[id]||{},sub}).eq('emp_id',id);if(up.error){if(!quiet)toast('提交失敗：'+up.error.message);return false}S.sub[id+k]=1;if(notify){const n=await sb.from('manager_notifications').insert({emp_id:id,work_date:k,action,details:{hours:vals}});if(n.error){if(!quiet)toast('意向已保存，但通知店長失敗：'+n.error.message);return false}}if(!quiet){toast(action=='updated'?'當天意向已更新，店長已收到通知':'當天意向已提交，店長已收到通知');render()}return {ok:true,action,hours:[...vals]}};async function submitWeek(){const id=CFG?.me||U.emp;if(!id||!emp(id)){toast('找不到員工帳號');return}const days=week().map(d=>ymd(d)).filter(k=>pd(k)>=TODAY&&!clo(k)&&(S.av[id][k]||[]).length);if(!days.length){toast('本週沒有可提交的意向時段');return}if(!confirm(`確認提交／更新本週 ${days.length} 天的意向？店長會收到一則整週通知。`))return;const saved=[];let fail=[];for(const k of days){const r=await submitDay(k,true,false);if(r)saved.push({date:k,hours:r.hours,action:r.action});else fail.push(k)}if(saved.length){const n=await sb.from('manager_notifications').insert({emp_id:id,work_date:saved[0].date,action:saved.some(x=>x.action=='updated')?'updated':'submitted',details:{weekly:true,days:saved}});if(n.error)toast(`已保存 ${saved.length} 天，但整週通知失敗：${n.error.message}`);else{if(fail.length)toast(`已保存 ${saved.length} 天；${fail.length} 天失敗。店長已收到一則整週通知。`);else toast(`本週 ${saved.length} 天意向已提交／更新，店長只會收到一則通知。`)}}else toast(`本週提交失敗：${fail.join('、')}`);render()}
 async function cancelDay(k){if(!confirm('確定申請取消這一天已提交的意向？店長確認前，原意向會保留。'))return;const id=CFG?.me||U.emp;if(!id)return;const old=[...(S.av[id][k]||[])];if(!old.length||!S.sub[id+k]){toast('這一天沒有已提交的意向');return}const pending=(S.notifs||[]).some(n=>n.emp_id===id&&n.work_date===k&&n.action==='cancelled'&&!n.details?.accepted);if(pending){toast('這一天已送出取消申請，正在等待店長確認');return}const n=await sb.from('manager_notifications').insert({emp_id:id,work_date:k,action:'cancelled',details:{previous_hours:old}}).select('*').single();if(n.error){toast('取消申請失敗：'+n.error.message);return}S.notifs=[...(S.notifs||[]),n.data];toast('已送出取消申請；店長確認後才會刪除意向');render()}
@@ -243,7 +256,7 @@ function act(a,d){
  else if(a=='out'){sb.auth.signOut().then(()=>location.reload());return}
  else if(a=='pw'){const p=prompt('請輸入新密碼（至少 6 碼）');if(p)staff('reset',{emp_id:d.e,password:p});return}
  else if(a=='manager-profile'){const name=$('#mn').value.trim(),title=$('#mt').value.trim()||'店長',rate=Number($('#mr').value);if(!name){toast('請填寫姓名');return}if($('#mr').value.trim()===''||!Number.isFinite(rate)||rate<0){toast('請填寫有效的時薪');return}(async()=>{const u=await sb.auth.getUser();if(u.error||!u.data.user){toast('無法確認目前登入帳號');return}const id='mgr_'+u.data.user.id;const a=await sb.from('emp_data').insert({emp_id:id,name,title,rate,email:CFG.login,user_id:u.data.user.id,av:{},off:{},punches:{},sub:{},obj:{},acks:{}});if(a.error){toast('建立失敗：'+a.error.message);return}CFG.me=id;U.emp=id;await load();U.role='e';render();toast('店長員工資料已建立並綁定目前帳號')})() ;return}
- else if(a=='login'){doLogin();return}
+ else if(a=='login'){doLogin();return}\n else if(a=='line-login'){doLineLogin();return}
  else if(a=='cw'){const w=+d.w,i=S.closed.wd.indexOf(w);if(i<0){S.closed.wd.push(w);const n=purge(k=>pd(k).getDay()==w);toast('已設為每週店休'+(n?'，移除 '+n+' 筆原有班次':''))}else S.closed.wd.splice(i,1)}
  else if(a=='cadd'){const k=$('#cd').value;if(!k){toast('請選擇日期');return}S.closed.dates[k]=$('#cn').value.trim();const n=purge(x=>x==k);toast('已新增店休日'+(n?'，移除 '+n+' 筆原有班次':''))}
  else if(a=='cdel'){delete S.closed.dates[d.k]}
@@ -257,5 +270,5 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b
 document.addEventListener('change',e=>{const s=e.target;if(s.dataset.a=='emp'){U.emp=s.value;render()}else if(s.dataset.a=='chk')chk()});
 $('#m').addEventListener('click',e=>{if(e.target.id=='m')hideM()});
 // Legacy long-press punch handler removed. Attendance is handled by attendance.html.
-if(!sb){$('#app').innerHTML='<section><h2>系統尚未完成正式環境設定</h2><p>請管理員在部署環境設定 Supabase Project URL 與 anon public key。為保護正式員工資料，系統不再提供本機演示模式或演示資料重置。</p></section>';$('#lg').hidden=true;}else{Promise.resolve(window.__SS_LIFF_READY).finally(()=>sb.auth.getSession().then(({data})=>data.session?enter(data.session):showLogin()))}
+if(!sb){$('#app').innerHTML='<section><h2>系統尚未完成正式環境設定</h2><p>請管理員在部署環境設定 Supabase Project URL 與 anon public key。為保護正式員工資料，系統不再提供本機演示模式或演示資料重置。</p></section>';$('#lg').hidden=true;}else{(async()=>{const {data}=await sb.auth.getSession();if(data.session){await enter(data.session);return}await window.__SS_LIFF_READY;if(window.liff?.isLoggedIn()){await doLineLogin();return}showLogin()})()}
 </script></body></html>
